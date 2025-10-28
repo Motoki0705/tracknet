@@ -45,20 +45,20 @@
 - [x] 仕様をdocs/datasets/に作成。
 
 ## 3. モデル（ViT＋アップサンプリングデコーダ）
-- [ ] バックボーン
-  - [ ] `tracknet/models/backbones/vit_backbone.py`（HF Transformersの `AutoImageProcessor` + `AutoModel`）
-  - [ ] `pretrained_model_name` は `demo/vit_demo.py` と同一指定が可能
-  - [ ] 出力: パッチトークンを `[B, H_p, W_p, C]` に整形して返す
-- [ ] デコーダ
-  - [ ] `tracknet/models/decoders/upsampling_decoder.py`（ConvTranspose/Interpolation + Convで段階的アップサンプル）
-  - [ ] 可変のヒートマップ解像度（例: 128×72）に対応
-- [ ] ヘッド
-  - [ ] `tracknet/models/heads/heatmap_head.py`（1chヒートマップ出力。活性化は後段のロスで対応）
-- [ ] `tracknet/models/__init__.py` 整備
+- [x] バックボーン
+  - [x] `tracknet/models/backbones/vit_backbone.py`（HF Transformersの `AutoImageProcessor` + `AutoModel`）
+  - [x] `pretrained_model_name` は `demo/vit_demo.py` と同一指定が可能
+  - [x] 出力: パッチトークンを `[B, H_p, W_p, C]` に整形して返す
+- [x] デコーダ
+  - [x] `tracknet/models/decoders/upsampling_decoder.py`（ConvTranspose/Interpolation + Convで段階的アップサンプル）
+  - [x] 可変のヒートマップ解像度（例: 128×72）に対応
+- [x] ヘッド
+  - [x] `tracknet/models/heads/heatmap_head.py`（1chヒートマップ出力。活性化は後段のロスで対応）
+- [x] `tracknet/models/__init__.py` 整備
 
 完了条件:
-- [ ] ダミー入力からヒートマップ出力まで前向き計算が通る（形状チェック）
-- [ ] 仕様をdocs/models/に作成。
+- [x] ダミー入力からヒートマップ出力まで前向き計算が通る（形状チェック）
+- [x] 仕様をdocs/models/に作成。
 
 ## 4. 損失・メトリクス・コールバック
 - [ ] `tracknet/training/losses/heatmap_loss.py`（MSE・Focalの選択、マスク対応）
@@ -68,6 +68,24 @@
 完了条件:
 - [ ] 単体テストでロス・メトリクスの入出力が妥当
 - [ ] 仕様をdocs/training/に作成。
+
+### 4.1 ConvNeXt＋FPN モデル（差し込み）
+- [ ] バックボーン
+  - [ ] `tracknet/models/backbones/convnext_backbone.py`（HF `AutoBackbone`／`AutoModel` で hidden_states 取得）
+  - [ ] `pretrained_model_name` は `demo/convnext_demo.py` と同一指定が可能
+  - [ ] 出力: マルチスケール特徴列 `[C3, C4, C5(, C2)]` を返す（各 `[B, C_i, H_i, W_i]`）
+- [ ] デコーダ（FPN）
+  - [ ] `tracknet/models/decoders/fpn_decoder.py`（1x1ラテラル→トップダウンup→3x3精錬→融合）
+  - [ ] ヒートマップ解像度（例: 128×72）へ各段をリサイズし `sum` or `concat+1x1` で融合可能
+  - [ ] 既存 `HeatmapHead` を利用して1chヒートマップ出力
+- [ ] コンフィグ
+  - [ ] `configs/model/convnext_fpn_heatmap.yaml`（`pretrained_model_name`, `fpn.lateral_dim`, `fpn.use_p2`, `fuse` 等）
+- [ ] `tracknet/models/__init__.py` 整備（公開シンボル追加）
+
+完了条件:
+- [ ] ダミー入力からヒートマップ出力まで前向き計算が通る（形状チェック）
+- [ ] ViT/ConvNeXt をコンフィグで切替可能（`--model vit_heatmap` / `--model convnext_fpn_heatmap`）
+- [ ] 仕様をdocs/models/に追記。
 
 ## 5. トレーナ（オーケストレーション）
 - [ ] `tracknet/training/trainer.py`

@@ -7,8 +7,12 @@ ViTバックボーン＋アップサンプリングデコーダによるヒー�
 - `models/`
   - `backbones/vit_backbone.py`  
     `demo/vit_demo.py` を基にしたViTラッパー。`pretrained_model_name`など既存デモと同一の初期化パラメータを維持する。
+  - `backbones/convnext_backbone.py`  
+    ConvNeXtラッパー。`AutoBackbone` から各ステージの特徴（hidden states）を取得し、FPN用に公開。
   - `decoders/upsampling_decoder.py`  
     パッチトークンを2次元ヒートマップへアップサンプリングするデコーダ。
+  - `decoders/fpn_decoder.py`  
+    FPNライクなトップダウン経路＋ラテラル畳み込みでマルチスケール融合を行うデコーダ。
   - `heads/heatmap_head.py`  
     デコーダ出力を加工し、最終ヒートマップや信頼度マップを生成する層。
   - `__init__.py`  
@@ -44,6 +48,7 @@ ViTバックボーン＋アップサンプリングデコーダによるヒー�
   データソース別設定（例: `tracknet.yaml`）。データルート、分割、前処理に関するパラメータを定義。
 - `model/`  
   ViTバックボーンやデコーダ構成、ヒートマップ関連のハイパーパラメータ。
+  - 例: `vit_heatmap.yaml`, `convnext_fpn_heatmap.yaml`
 - `training/`  
   最適化設定、スケジューラ、ロギング、チェックポイントに関する設定。
 

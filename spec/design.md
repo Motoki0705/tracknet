@@ -91,3 +91,48 @@
 - インポート確認: `uv run python -c "import tracknet"`
 
 以上。
+
+---
+
+## 4.1 ConvNeXt＋FPN 拡張設計（差し込み）
+
+目的:
+- ConvNeXt バックボーンの各ステージ出力（hidden states）を利用し、FPNライクなトップダウン経路でマルチスケール特徴を融合、最終的にヒートマップを出力するモデルを追加する。
+
+バックボーン（ConvNeXt）:
+- HF Transformers の `AutoBackbone`（もしくは `AutoModel`）を利用。`return_dict=True, output_hidden_states=True`。
+- 例: `facebook/dinov3-convnext-base-pretrain-lvd1689m`（`demo/convnext_demo.py` と整合）。
+- 出力: 複数スケールの特徴マップ `C3, C4, C5, (C2任意)` を取得。チャネル数はモデル定義に依存。
+- オフライン/非依存運用のため、フォールバックとして `torchvision.models.convnext_*` を利用可能にする設計（実装時、存在チェック）。
+
+デコーダ（FPNライク）:
+- ラテラル 1x1 Conv で各段のチャネルを統一（例: 256）。
+- トップダウン: `P5 = L5`, `P4 = L4 + up(P5)`, `P3 = L3 + up(P4)`（必要に応じて `P2` まで）。
+- 各 `P*` に 3x3 Conv を適用してエイリアシングを軽減。
+- 複数解像度の `P*` をターゲット解像度（例: 72×128）へアップサンプルし、`sum` or `concat+1x1` で融合。
+
+ヘッド:
+- 既存の `HeatmapHead`（1x1 Conv）を再利用して `[B,1,Hh,Wh]` を出力。
+
+コンフィグ例（`configs/model/convnext_fpn_heatmap.yaml`）:
+- `pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m`
+- `fpn: { lateral_dim: 256, use_p2: false, fuse: sum }`
+- `head: { out_channels: 1 }`
+- `heatmap: { size: [128, 72], sigma: 2.0 }`
+
+前向き形状（例）:
+- 入力: `[B,3,720,1280]`
+- ConvNeXt 出力例: `C3 ~ 1/8`, `C4 ~ 1/16`, `C5 ~ 1/32`（空間分解能基準）
+- FPN: `P3` を基準に各段を合わせ、最終 `[B,Cd,72,128]` を得る。
+- ヘッド: `[B,1,72,128]`。
+
+実装配置:
+- `tracknet/models/backbones/convnext_backbone.py`（マルチスケール特徴抽出）
+- `tracknet/models/decoders/fpn_decoder.py`（FPN トップダウン＋融合）
+- `configs/model/convnext_fpn_heatmap.yaml`（モデル設定）
+- `tracknet/models/__init__.py` に公開シンボル追加
+
+完了条件（本セクションの実装チケット）:
+- ダミー入力から `[B,1,Hh,Wh]` の前向きが通る（形状検証）。
+- コンフィグで ViT/ConvNeXt を切り替え可能。
+- docs/models に ConvNeXt+FPN の簡易説明を追記。
