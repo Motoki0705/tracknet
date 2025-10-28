@@ -12,18 +12,18 @@
 - [x] 主要ディレクトリが作成され、インポート可能（`uv run python -c "import tracknet"`）
 
 ## 1. コンフィグ読み込み（OmegaConf）
-- [ ] `tracknet/utils/config.py` 実装
-  - [ ] `configs/data/<name>.yaml` `configs/model/<name>.yaml` `configs/training/<name>.yaml` を読み込み、マージして `cfg` を返す
-  - [ ] CLI引数（例: `--data tracknet --model vit_heatmap --training default`）で指定可
-  - [ ] ランダムシード、出力ディレクトリの初期化
-- [ ] サンプル設定ファイル追加
-  - [ ] `configs/data/tracknet.yaml`（データルート、分割、前処理）
-  - [ ] `configs/model/vit_heatmap.yaml`（ViT設定、デコーダ、ヒートマップ設定）
-  - [ ] `configs/training/default.yaml`（最適化、スケジューラ、ロギング、チェックポイント）
+- [x] `tracknet/utils/config.py` 実装
+  - [x] `configs/data/<name>.yaml` `configs/model/<name>.yaml` `configs/training/<name>.yaml` を読み込み、マージして `cfg` を返す
+  - [x] CLI引数（例: `--data tracknet --model vit_heatmap --training default`）で指定可
+  - [x] ランダムシード、出力ディレクトリの初期化
+- [x] サンプル設定ファイル追加
+  - [x] `configs/data/tracknet.yaml`（データルート、分割、前処理）
+  - [x] `configs/model/vit_heatmap.yaml`（ViT設定、デコーダ、ヒートマップ設定）
+  - [x] `configs/training/default.yaml`（最適化、スケジューラ、ロギング、チェックポイント）
 
 完了条件:
-- [ ] `uv run python -m tracknet.scripts.train --dry-run` 相当で `cfg` の構築ログが出力される
-- [ ] 使用をdocs/config/に作成。
+- [x] `uv run python -m tracknet.scripts.train --dry-run` 相当で `cfg` の構築ログが出力される
+- [x] 使用をdocs/config/に作成。
 
 ## 2. データセット層（tracknet/datasets）
 - [ ] 抽象ベース実装
