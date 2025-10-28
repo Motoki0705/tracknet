@@ -45,3 +45,33 @@ out = head(feat)                              # [B,1,72,128]
 print(out.shape)
 ```
 
+## ConvNeXt＋FPN（差し込み設計 4.1）
+- `tracknet/models/backbones/convnext_backbone.py`
+  - `ConvNeXtBackboneConfig(pretrained_model_name, use_pretrained=True, tv_model='convnext_tiny')`
+  - `ConvNeXtBackbone`: 入力 `[B,3,H,W]` → 出力 `feats=[C3,C4,C5]`（各 `[B,C_i,H_i,W_i]`）
+  - HFモード（ローカルキャッシュ） or torchvision fallback をサポート。
+- `tracknet/models/decoders/fpn_decoder.py`
+  - `FPNDecoder(in_channels, FPNDecoderConfig(lateral_dim=256, use_p2=False, fuse='sum', out_size=(Hh,Wh)))`
+  - ラテラル1x1→トップダウンup→3x3精錬→`sum`/`concat` 融合。
+
+### 使用例
+```python
+import torch
+from tracknet.models import ConvNeXtBackbone, ConvNeXtBackboneConfig, FPNDecoder, FPNDecoderConfig, HeatmapHead
+
+B, C, H, W = 2, 3, 720, 1280
+x = torch.randn(B, C, H, W)
+
+bb = ConvNeXtBackbone(ConvNeXtBackboneConfig(
+    pretrained_model_name="facebook/dinov3-convnext-base-pretrain-lvd1689m",
+    use_pretrained=False,  # fallback
+    tv_model='convnext_tiny',
+))
+feats = bb(x)                       # [C3,C4,C5]
+in_chs = [f.shape[1] for f in feats]
+fpn = FPNDecoder(in_channels=in_chs, cfg=FPNDecoderConfig(lateral_dim=256, fuse='sum', out_size=(72,128)))
+feat = fpn(feats)                   # [B,256,72,128]
+head = HeatmapHead(256)
+out = head(feat)                    # [B,1,72,128]
+print(out.shape)
+```
