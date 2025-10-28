@@ -73,14 +73,12 @@ def main(argv: List[str] | None = None) -> int:
         print("[dry-run] Exiting before training loop.")
         return 0
 
-    # Placeholder for future training logic (Section 5).
-    # from tracknet.training.trainer import Trainer
-    # trainer = Trainer(cfg)
-    # trainer.train()
-    print("Training stub not yet implemented. Coming in later sections.")
+    # Launch training
+    from tracknet.training.trainer import Trainer
+    trainer = Trainer(cfg)
+    trainer.train()
     return 0
 
 
 if __name__ == "__main__":  # pragma: no cover - CLI invocation
     raise SystemExit(main())
-
