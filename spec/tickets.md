@@ -100,15 +100,15 @@
 - [x] 仕様をdocs/training/に作成。
 
 ## 6. スクリプト
-- [ ] `tracknet/scripts/train.py`（エントリポイント）
-  - [ ] OmegaConfでcfgを構築し、`trainer.train(cfg)` を起動
-  - [ ] `--data` `--model` `--training` と一部オーバーライドのCLIを受け付け
-- [ ] `tracknet/scripts/eval.py`（任意）
-- [ ] `tracknet/scripts/predict.py`（任意。単画像/動画での推論デモ）
+- [x] `tracknet/scripts/train.py`（エントリポイント）
+  - [x] OmegaConfでcfgを構築し、`trainer.train(cfg)` を起動
+  - [x] `--data` `--model` `--training` と一部オーバーライドのCLIを受け付け
+- [x] `tracknet/scripts/eval.py`（任意）
+- [x] `tracknet/scripts/predict.py`（任意。単画像/動画での推論デモ）
 
 完了条件:
-- [ ] `uv run python -m tracknet.scripts.train --data tracknet --model vit_heatmap --training default` が起動
-- [ ] 使用をdocs/scripts/に作成。
+- [x] `uv run python -m tracknet.scripts.train --data tracknet --model vit_heatmap --training default` が起動
+- [x] 使用をdocs/scripts/に作成。
 
 ## 7. ログ・可視化
 - [ ] `tracknet/utils/logging.py`（標準出力ログ＋TensorBoard/W&Bは任意）
