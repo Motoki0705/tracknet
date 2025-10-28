@@ -50,6 +50,14 @@ from tracknet.training import (
     HeatmapLossConfig, build_heatmap_loss,
     heatmap_argmax_coords, visible_from_mask,
 )
+from tracknet.utils.logging import Logger, LoggerConfig, save_overlay_from_tensor
+
+# Optional progress bars via tqdm
+try:  # pragma: no cover - optional dependency
+    from tqdm.auto import tqdm as _tqdm
+except Exception:  # Fallback: identity iterator
+    def _tqdm(it, total=None, desc=None):  # type: ignore
+        return it
 
 
 class HeatmapModel(nn.Module):
@@ -240,12 +248,26 @@ class Trainer:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
         best_val = math.inf
 
+        logger = Logger(LoggerConfig(log_dir=str(self.cfg.runtime.log_dir), use_tensorboard=False))
         for epoch in range(1, epochs + 1):
             model.train()
             t0 = time.time()
             train_loss = 0.0
             num_batches = 0
-            for bi, batch in enumerate(train_loader, start=1):
+            # Wrap train loader with tqdm (if available)
+            try:
+                total_train = None
+                if limit_train:
+                    total_train = limit_train
+                    try:
+                        total_train = min(limit_train, len(train_loader))
+                    except Exception:
+                        pass
+                iter_train = _tqdm(train_loader, total=total_train, desc=f"Train {epoch:03d}")
+            except Exception:
+                iter_train = train_loader
+
+            for bi, batch in enumerate(iter_train, start=1):
                 images = batch["images"].to(device)
                 targets = batch["heatmaps"].to(device)
                 masks = batch["masks"].to(device)
@@ -274,8 +296,21 @@ class Trainer:
                 model.eval()
                 vloss = 0.0
                 vnum = 0
+                saved_preview = False
                 with torch.inference_mode():
-                    for vi, batch in enumerate(val_loader, start=1):
+                    try:
+                        total_val = None
+                        if limit_val:
+                            total_val = limit_val
+                            try:
+                                total_val = min(limit_val, len(val_loader))
+                            except Exception:
+                                pass
+                        iter_val = _tqdm(val_loader, total=total_val, desc=f"Val   {epoch:03d}")
+                    except Exception:
+                        iter_val = val_loader
+
+                    for vi, batch in enumerate(iter_val, start=1):
                         images = batch["images"].to(device)
                         targets = batch["heatmaps"].to(device)
                         masks = batch["masks"].to(device)
@@ -283,6 +318,19 @@ class Trainer:
                         loss = criterion(outputs, targets, masks)
                         vloss += float(loss.detach().cpu())
                         vnum += 1
+                        # Save preview overlays for the first validation batch
+                        if not saved_preview:
+                            out_dir = Path(self.cfg.runtime.log_dir) / "overlays" / f"epoch{epoch:03d}"
+                            out_dir.mkdir(parents=True, exist_ok=True)
+                            # Save up to 4 samples
+                            k = min(4, images.shape[0])
+                            # Determine if images are normalized
+                            denorm = bool(self.cfg.data.preprocess.get("normalize", True))
+                            for i in range(k):
+                                img_t = images[i].detach().cpu()
+                                hm_t = outputs[i].detach().cpu()
+                                save_overlay_from_tensor(img_t, hm_t, out_dir / f"sample_{i}.png", denormalize=denorm)
+                            saved_preview = True
                         if limit_val and vi >= limit_val:
                             break
                 val_loss = vloss / max(1, vnum)
@@ -299,6 +347,10 @@ class Trainer:
                 print(f"Epoch {epoch:03d}: train_loss={train_loss:.4f} time={dt:.1f}s")
             else:
                 print(f"Epoch {epoch:03d}: train_loss={train_loss:.4f} val_loss={val_loss:.4f} time={dt:.1f}s")
+            # Log scalars
+            logger.log_scalar("train/loss", float(train_loss), epoch)
+            if val_loss is not None:
+                logger.log_scalar("val/loss", float(val_loss), epoch)
 
             # Save best checkpoint by val loss if available else train loss
             score = val_loss if val_loss is not None else train_loss
@@ -313,4 +365,4 @@ class Trainer:
                     "cfg": self.cfg,
                 }, path)
                 print(f"Saved best checkpoint to {path}")
-
+        logger.close()
