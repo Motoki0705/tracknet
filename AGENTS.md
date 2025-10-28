@@ -27,3 +27,9 @@ spec/tickets.mdを方針として、spec/design.md, directory_structure.mdを遵
 ## ブランチング戦略
 実装は必ず新しいブランチで行う。セクションごとにブランチを分けるのが好ましい。
 例えば、main -> feature/setupを切って。セクション`0.初期セットアップ`を実装して、コミットまでする。
+<<<<<<< HEAD
+=======
+実装完了後、push -> PRまで行う。
+
+## MCP利用方法
+>>>>>>> b4211e84628d7ad7df0654e76bcc08d3130ab72f
