@@ -12,3 +12,7 @@ wheels/
 # datasets
 data/
 annotation.json
+
+# checkpoints and logs
+checkpoints/
+logs/
