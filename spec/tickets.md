@@ -3,13 +3,13 @@
 以下は、ViTバックボーン＋アップサンプリングデコーダによるヒートマップ出力モデルと学習システムを構築するための実装タスク群です。完了時に各チェックをオンにしてください。
 
 ## 0. 初期セットアップ
-- [ ] `tracknet/` パッケージのスケルトン作成（`__init__.py` 含む）
-- [ ] `tracknet/models/` `training/` `utils/` `scripts/` `datasets/` のディレクトリ作成
-- [ ] `configs/` 配下に `data/` `model/` `training/` ディレクトリ作成
-- [ ] 既存 `demo/vit_demo.py` の参照確認（`pretrained_model_name` を共有）
+- [x] `tracknet/` パッケージのスケルトン作成（`__init__.py` 含む）
+- [x] `tracknet/models/` `training/` `utils/` `scripts/` `datasets/` のディレクトリ作成
+- [x] `configs/` 配下に `data/` `model/` `training/` ディレクトリ作成
+- [x] 既存 `demo/vit_demo.py` の参照確認（`pretrained_model_name` を共有）
 
 完了条件:
-- [ ] 主要ディレクトリが作成され、インポート可能（`uv run python -c "import tracknet"`）
+- [x] 主要ディレクトリが作成され、インポート可能（`uv run python -c "import tracknet"`）
 
 ## 1. コンフィグ読み込み（OmegaConf）
 - [ ] `tracknet/utils/config.py` 実装
