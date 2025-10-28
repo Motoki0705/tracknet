@@ -23,6 +23,7 @@
 
 完了条件:
 - [ ] `uv run python -m tracknet.scripts.train --dry-run` 相当で `cfg` の構築ログが出力される
+- [ ] 使用をdocs/config/に作成。
 
 ## 2. データセット層（tracknet/datasets）
 - [ ] 抽象ベース実装
@@ -41,6 +42,7 @@
 完了条件:
 - [ ] DataLoaderで1バッチ取得し、画像テンソル・ヒートマップ・マスクの形状が想定通り
 - [ ] サブセット読み込み・分割（train/val）が機能
+- [ ] 仕様をdocs/datasets/に作成。
 
 ## 3. モデル（ViT＋アップサンプリングデコーダ）
 - [ ] バックボーン
@@ -56,6 +58,7 @@
 
 完了条件:
 - [ ] ダミー入力からヒートマップ出力まで前向き計算が通る（形状チェック）
+- [ ] 仕様をdocs/models/に作成。
 
 ## 4. 損失・メトリクス・コールバック
 - [ ] `tracknet/training/losses/heatmap_loss.py`（MSE・Focalの選択、マスク対応）
@@ -64,6 +67,7 @@
 
 完了条件:
 - [ ] 単体テストでロス・メトリクスの入出力が妥当
+- [ ] 仕様をdocs/training/に作成。
 
 ## 5. トレーナ（オーケストレーション）
 - [ ] `tracknet/training/trainer.py`
@@ -74,6 +78,7 @@
 
 完了条件:
 - [ ] 小規模サンプルで1〜2エポックのスモークテストが通る
+- [ ] 仕様をdocs/training/に作成。
 
 ## 6. スクリプト
 - [ ] `tracknet/scripts/train.py`（エントリポイント）
@@ -84,6 +89,7 @@
 
 完了条件:
 - [ ] `uv run python -m tracknet.scripts.train --data tracknet --model vit_heatmap --training default` が起動
+- [ ] 使用をdocs/scripts/に作成。
 
 ## 7. ログ・可視化
 - [ ] `tracknet/utils/logging.py`（標準出力ログ＋TensorBoard/W&Bは任意）
@@ -99,11 +105,7 @@
 
 完了条件:
 - [ ] 主要テストがローカルで通過（CIは任意）
-
-## 9. ドキュメント
-- [ ] `docs/model.md`（ViT→パッチ→デコーダ→ヒートマップの流れと入出力形状）
-- [ ] `docs/dataset.md`（必要なら最終仕様の微修正）
-- [ ] `README.md` に学習の起動方法を簡潔に追記
+- [ ] 仕様をdocs/tests/に作成。
 
 ---
 
