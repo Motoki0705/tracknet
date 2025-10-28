@@ -79,13 +79,13 @@
 - [x] 仕様をdocs/models/に追記。
 
 ## 4. 損失・メトリクス・コールバック
-- [ ] `tracknet/training/losses/heatmap_loss.py`（MSE・Focalの選択、マスク対応）
-- [ ] `tracknet/training/metrics/`（argmax/soft-argmaxで座標推定、L2誤差、PCK@r）
-- [ ] `tracknet/training/callbacks/`（モデル選択・早期終了・LRスケジューラ連携）
+- [x] `tracknet/training/losses/heatmap_loss.py`（MSE・Focalの選択、マスク対応）
+- [x] `tracknet/training/metrics/`（argmax/soft-argmaxで座標推定、L2誤差、PCK@r）
+- [x] `tracknet/training/callbacks/`（モデル選択・早期終了・LRスケジューラ連携）
 
 完了条件:
-- [ ] 単体テストでロス・メトリクスの入出力が妥当
-- [ ] 仕様をdocs/training/に作成。
+- [x] 単体テストでロス・メトリクスの入出力が妥当（ローカルスモーク確認）
+- [x] 仕様をdocs/training/に作成。
 
 
 ## 5. トレーナ（オーケストレーション）
