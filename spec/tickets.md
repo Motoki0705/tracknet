@@ -26,23 +26,23 @@
 - [x] 使用をdocs/config/に作成。
 
 ## 2. データセット層（tracknet/datasets）
-- [ ] 抽象ベース実装
-  - [ ] `tracknet/datasets/base/sequence_dataset.py`（時系列サンプル用）
-  - [ ] `tracknet/datasets/base/image_dataset.py`（単画像サンプル用）
-- [ ] ユーティリティ
-  - [ ] `tracknet/datasets/utils/augmentations.py`（幾何・色変換。座標との整合維持）
-  - [ ] `tracknet/datasets/utils/collate.py`（バッチ整形、ヒートマップ生成、可視性マスク）
-  - [ ] ヒートマップ生成はガウス分布（σや出力解像度はコンフィグ）
-- [ ] TrackNet具象実装
-  - [ ] `tracknet/datasets/tracknet_frame.py`（単画像＋ヒートマップ）
-  - [ ] `tracknet/datasets/tracknet_sequence.py`（時系列ウィンドウ＋時系列ヒートマップ）
-  - [ ] `data/tracknet/` 配下の `game*/Clip*/<frame>.jpg` と `Label.csv` をパース
-  - [ ] `visibility=0` など座標欠損時はロスをマスク
+- [x] 抽象ベース実装
+  - [x] `tracknet/datasets/base/sequence_dataset.py`（時系列サンプル用）
+  - [x] `tracknet/datasets/base/image_dataset.py`（単画像サンプル用）
+- [x] ユーティリティ
+  - [x] `tracknet/datasets/utils/augmentations.py`（幾何・色変換。座標との整合維持）
+  - [x] `tracknet/datasets/utils/collate.py`（バッチ整形、ヒートマップ生成、可視性マスク）
+  - [x] ヒートマップ生成はガウス分布（σや出力解像度はコンフィグ）
+- [x] TrackNet具象実装
+  - [x] `tracknet/datasets/tracknet_frame.py`（単画像＋ヒートマップ）
+  - [x] `tracknet/datasets/tracknet_sequence.py`（時系列ウィンドウ＋時系列ヒートマップ）
+  - [x] `data/tracknet/` 配下の `game*/Clip*/<frame>.jpg` と `Label.csv` をパース
+  - [x] `visibility=0` など座標欠損時はロスをマスク
 
 完了条件:
-- [ ] DataLoaderで1バッチ取得し、画像テンソル・ヒートマップ・マスクの形状が想定通り
-- [ ] サブセット読み込み・分割（train/val）が機能
-- [ ] 仕様をdocs/datasets/に作成。
+- [x] DataLoaderで1バッチ取得し、画像テンソル・ヒートマップ・マスクの形状が想定通り
+- [x] サブセット読み込み・分割（train/val）が機能
+- [x] 仕様をdocs/datasets/に作成。
 
 ## 3. モデル（ViT＋アップサンプリングデコーダ）
 - [ ] バックボーン
