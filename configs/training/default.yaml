@@ -1,0 +1,22 @@
+# Optimization and training defaults
+seed: 42
+
+batch_size: 8
+epochs: 1
+amp: false
+grad_clip: 1.0
+
+optimizer:
+  name: adamw
+  lr: 5.0e-4
+  weight_decay: 0.05
+
+scheduler:
+  name: cosine
+  warmup_epochs: 5
+
+# Output directories (resolved and created by utils/config.py)
+output_dir: outputs
+log_dir: outputs/logs
+ckpt_dir: outputs/checkpoints
+
