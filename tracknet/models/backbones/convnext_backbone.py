@@ -47,14 +47,16 @@ class ConvNeXtBackbone(nn.Module):
         self._mode = "pretrained" if cfg.use_pretrained else "fallback"
 
         if self._mode == "pretrained":
+            print("Using Hugging Face ConvNeXt pretrained backbone.")
             try:
                 from transformers import AutoModel
             except Exception as e:  # pragma: no cover
                 raise RuntimeError("transformers not available; use_pretrained=False for fallback") from e
             self.model = AutoModel.from_pretrained(
-                cfg.pretrained_model_name, local_files_only=True
+                cfg.pretrained_model_name, devide_map="auto"
             )
         else:
+            print("Using torchvision ConvNeXt fallback backbone.")
             # Torchvision fallback
             from torchvision.models import convnext_tiny, convnext_small, convnext_base, convnext_large
             from torchvision.models.feature_extraction import create_feature_extractor

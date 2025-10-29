@@ -53,6 +53,7 @@ class ViTBackbone(nn.Module):
         self._mode = "pretrained" if cfg.use_pretrained else "fallback"
 
         if self._mode == "pretrained":
+            print("Using Hugging Face ViT pretrained backbone.")
             try:  # Lazy import to avoid hard dependency when offline
                 from transformers import AutoImageProcessor, AutoModel
             except Exception as e:  # pragma: no cover - import environment specific
@@ -62,10 +63,11 @@ class ViTBackbone(nn.Module):
 
             # Hold references in submodules for proper .to(device)
             self.processor = AutoImageProcessor.from_pretrained(
-                cfg.pretrained_model_name, local_files_only=True
+                cfg.pretrained_model_name
             )
             self.model = AutoModel.from_pretrained(
-                cfg.pretrained_model_name, local_files_only=True
+                cfg.pretrained_model_name, 
+                device_map="auto", 
             )
             # Determine token dims
             hidden_size = int(self.model.config.hidden_size)

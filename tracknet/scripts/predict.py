@@ -98,9 +98,25 @@ def main(argv: List[str] | None = None) -> int:
     # For predict: keep [0,1] tensor (do not normalize) to be safe for HF processor path
     x = to_tensor_and_normalize(img, normalize=False).unsqueeze(0).to(device)
 
+    # Precision handling (inference)
+    prec = str(cfg.training.get('precision', 'fp32')).lower()
+    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if prec == 'fp16' and device_type == 'cuda':
+        autocast_dtype = torch.float16
+    elif prec == 'bf16':
+        autocast_dtype = torch.bfloat16
+    else:
+        autocast_dtype = None
+
     model.eval()
     with torch.inference_mode():
-        hm = model(x)  # [1,1,Hh,Wh]
+        if autocast_dtype is not None:
+            ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
+        else:
+            from contextlib import nullcontext
+            ctx = nullcontext()
+        with ctx:
+            hm = model(x)  # [1,1,Hh,Wh]
 
     outdir = Path(args.outdir) if args.outdir else Path(cfg.runtime.output_root) / 'predictions'
     outdir.mkdir(parents=True, exist_ok=True)
@@ -114,4 +130,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == '__main__':  # pragma: no cover
     raise SystemExit(main())
-

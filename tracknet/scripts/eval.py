@@ -75,6 +75,16 @@ def main(argv: List[str] | None = None) -> int:
     else:
         print("No checkpoint provided/found. Evaluating current weights.")
 
+    # Precision handling (eval only)
+    prec = str(cfg.training.get('precision', 'fp32')).lower()
+    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
+    if prec == 'fp16' and device_type == 'cuda':
+        autocast_dtype = torch.float16
+    elif prec == 'bf16':
+        autocast_dtype = torch.bfloat16
+    else:
+        autocast_dtype = None
+
     # Eval loop
     model.eval()
     tot_loss = 0.0
@@ -86,7 +96,13 @@ def main(argv: List[str] | None = None) -> int:
             images = batch["images"].to(device)
             targets = batch["heatmaps"].to(device)
             masks = batch["masks"].to(device)
-            preds = model(images)
+            if autocast_dtype is not None:
+                ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
+            else:
+                from contextlib import nullcontext
+                ctx = nullcontext()
+            with ctx:
+                preds = model(images)
             l = loss(preds, targets, masks)
             tot_loss += float(l.cpu())
             # Argmax-based metrics on heatmap space
@@ -105,4 +121,3 @@ def main(argv: List[str] | None = None) -> int:
 
 if __name__ == "__main__":  # pragma: no cover
     raise SystemExit(main())
-

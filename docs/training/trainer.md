@@ -20,6 +20,7 @@
 - `training.optimizer.{name, lr, weight_decay}`
 - `training.scheduler.{name, warmup_epochs}`（一部未使用）
 - 任意: `training.limit_train_batches`, `training.limit_val_batches`（スモーク用途）
+- パフォーマンス: `training.data_loader.{num_workers,pin_memory,persistent_workers,prefetch_factor,drop_last}`
 
 ## 使用例
 ```
@@ -32,4 +33,3 @@ uv run python -m tracknet.scripts.train \
 ## 出力
 - 標準出力: 各エポックの `train_loss` / `val_loss`
 - チェックポイント: `outputs/checkpoints/best_*.pt`（最良指標で更新）
-

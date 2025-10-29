@@ -71,6 +71,7 @@ class HeatmapModel(nn.Module):
         super().__init__()
         hm_w, hm_h = int(model_cfg.heatmap.size[0]), int(model_cfg.heatmap.size[1])
         out_size = (hm_h, hm_w)  # NCHW expects (H,W)
+        self.freeze_backbone = bool(model_cfg.get("backbone", {}).get("freeze", True))
 
         if hasattr(model_cfg, "fpn"):
             bb = ConvNeXtBackbone(
@@ -108,6 +109,11 @@ class HeatmapModel(nn.Module):
             self.head = HeatmapHead(channels[-1])
         else:
             raise ValueError("model config must contain either 'decoder' (ViT) or 'fpn' (ConvNeXt)")
+
+        # Freeze backbone parameters if requested
+        if self.freeze_backbone:
+            for p in self.backbone.parameters():
+                p.requires_grad = False
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         if self.variant == "vit_upsample":
@@ -189,8 +195,26 @@ class Trainer:
             collate_fn = lambda b: collate_frames(b, heatmap_size=heatmap_size, sigma=sigma)
 
         bs = int(self.cfg.training.batch_size)
-        train_loader = DataLoader(train_ds, batch_size=bs, shuffle=True, collate_fn=collate_fn)
-        val_loader = DataLoader(val_ds, batch_size=bs, shuffle=False, collate_fn=collate_fn) if val_ds else None
+        dl_cfg = self.cfg.training.get("data_loader", {})
+        num_workers = int(dl_cfg.get("num_workers", 0))
+        pin_memory = bool(dl_cfg.get("pin_memory", False))
+        persistent_workers = bool(dl_cfg.get("persistent_workers", False)) and num_workers > 0
+        prefetch_factor = int(dl_cfg.get("prefetch_factor", 2)) if num_workers > 0 else None
+        drop_last = bool(dl_cfg.get("drop_last", False))
+
+        common_kwargs = dict(
+            batch_size=bs,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            persistent_workers=persistent_workers,
+            collate_fn=collate_fn,
+            drop_last=drop_last,
+        )
+        if prefetch_factor is not None:
+            common_kwargs["prefetch_factor"] = prefetch_factor
+
+        train_loader = DataLoader(train_ds, shuffle=True, **common_kwargs)
+        val_loader = DataLoader(val_ds, shuffle=False, **common_kwargs) if val_ds else None
         return train_loader, val_loader
 
     # ---------------- Model & Optim -----------------
@@ -210,11 +234,12 @@ class Trainer:
         name = str(ocfg.get("name", "adamw")).lower()
         lr = float(ocfg.get("lr", 5e-4))
         wd = float(ocfg.get("weight_decay", 0.0))
+        params = [p for p in model.parameters() if p.requires_grad]
         if name == "adamw":
-            return torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=wd)
+            return torch.optim.AdamW(params, lr=lr, weight_decay=wd)
         if name == "sgd":
             momentum = float(ocfg.get("momentum", 0.9))
-            return torch.optim.SGD(model.parameters(), lr=lr, momentum=momentum, weight_decay=wd)
+            return torch.optim.SGD(params, lr=lr, momentum=momentum, weight_decay=wd)
         raise ValueError(f"Unsupported optimizer: {name}")
 
     def _build_scheduler(self, optim: torch.optim.Optimizer) -> Optional[torch.optim.lr_scheduler._LRScheduler]:  # type: ignore[attr-defined]
@@ -236,8 +261,23 @@ class Trainer:
 
         epochs = int(self.cfg.training.get("epochs", 1))
         grad_clip = float(self.cfg.training.get("grad_clip", 0.0))
-        use_amp = bool(self.cfg.training.get("amp", False))
-        scaler = torch.cuda.amp.GradScaler(enabled=use_amp)  # type: ignore[attr-defined]
+        # Precision selection: prefer new `training.precision`, fallback to legacy `amp`
+        prec = str(self.cfg.training.get("precision", "auto")).lower()
+        if prec == "auto":
+            prec = "fp16" if bool(self.cfg.training.get("amp", False)) else "fp32"
+        device_type = "cuda" if torch.cuda.is_available() else "cpu"
+        use_fp16 = (prec == "fp16" and device_type == "cuda")
+        use_bf16 = (prec == "bf16" and (device_type == "cuda" or device_type == "cpu"))
+        # autocast dtype
+        if use_fp16:
+            autocast_dtype = torch.float16
+        elif use_bf16:
+            autocast_dtype = torch.bfloat16
+        else:
+            autocast_dtype = None
+
+        # GradScaler only for fp16 on CUDA
+        scaler = torch.cuda.amp.GradScaler(enabled=use_fp16)  # type: ignore[attr-defined]
 
         # Limits for quick smoke tests
         limit_train = int(self.cfg.training.get("limit_train_batches", 0))
@@ -268,12 +308,19 @@ class Trainer:
                 iter_train = train_loader
 
             for bi, batch in enumerate(iter_train, start=1):
-                images = batch["images"].to(device)
-                targets = batch["heatmaps"].to(device)
-                masks = batch["masks"].to(device)
+                non_blocking = bool(self.cfg.training.get("data_loader", {}).get("pin_memory", False))
+                images = batch["images"].to(device, non_blocking=non_blocking)
+                targets = batch["heatmaps"].to(device, non_blocking=non_blocking)
+                masks = batch["masks"].to(device, non_blocking=non_blocking)
 
                 optimizer.zero_grad(set_to_none=True)
-                with torch.cuda.amp.autocast(enabled=use_amp):  # type: ignore[attr-defined]
+                # Autocast for selected precision
+                if autocast_dtype is not None:
+                    ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
+                else:
+                    from contextlib import nullcontext
+                    ctx = nullcontext()
+                with ctx:
                     outputs = model(images)
                     loss = criterion(outputs, targets, masks)
                 scaler.scale(loss).backward()
@@ -311,10 +358,17 @@ class Trainer:
                         iter_val = val_loader
 
                     for vi, batch in enumerate(iter_val, start=1):
-                        images = batch["images"].to(device)
-                        targets = batch["heatmaps"].to(device)
-                        masks = batch["masks"].to(device)
-                        outputs = model(images)
+                        non_blocking = bool(self.cfg.training.get("data_loader", {}).get("pin_memory", False))
+                        images = batch["images"].to(device, non_blocking=non_blocking)
+                        targets = batch["heatmaps"].to(device, non_blocking=non_blocking)
+                        masks = batch["masks"].to(device, non_blocking=non_blocking)
+                        if autocast_dtype is not None:
+                            ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
+                        else:
+                            from contextlib import nullcontext
+                            ctx = nullcontext()
+                        with ctx:
+                            outputs = model(images)
                         loss = criterion(outputs, targets, masks)
                         vloss += float(loss.detach().cpu())
                         vnum += 1

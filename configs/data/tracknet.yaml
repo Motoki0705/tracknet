@@ -1,12 +1,12 @@
 root: data/tracknet
 split:
   # Example split lists. Adjust to your dataset structure.
-  train_games: [game1, game2]
-  val_games: [game3]
+  train_games: [game1, game2, game3, game4, game5, game6, game7, game8, game9]
+  val_games: [game10]
 preprocess:
   # Image preprocessing aligned with ViT processor; actual size determined
   # by the model's image processor config.
-  resize: null
+  resize: [512, 228]
   normalize: true
   flip_prob: 0.0
 sequence:

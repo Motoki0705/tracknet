@@ -3,8 +3,17 @@ seed: 42
 
 batch_size: 8
 epochs: 1
-amp: false
+amp: true  # deprecated; use `precision` if可能
+precision: fp16  # one of: fp32, fp16, bf16
 grad_clip: 1.0
+
+# DataLoader performance tuning
+data_loader:
+  num_workers: 4
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  drop_last: false
 
 optimizer:
   name: adamw
@@ -19,4 +28,3 @@ scheduler:
 output_dir: outputs
 log_dir: outputs/logs
 ckpt_dir: outputs/checkpoints
-

@@ -2,8 +2,9 @@
 pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
 
 backbone:
-  use_pretrained: false  # offline fallback by default; set true when cached
+  use_pretrained: true  # offline fallback by default; set true when cached
   tv_model: convnext_tiny
+  freeze: true
 
 fpn:
   lateral_dim: 256
@@ -12,6 +13,5 @@ fpn:
 
 heatmap:
   # Target heatmap size [W, H]
-  size: [128, 72]
+  size: [256, 144]
   sigma: 2.0
-
