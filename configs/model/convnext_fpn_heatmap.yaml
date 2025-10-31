@@ -2,14 +2,14 @@
 pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
 
 backbone:
-  use_pretrained: true  # offline fallback by default; set true when cached
-  tv_model: convnext_tiny
   freeze: true
+  return_stages: [0, 1, 2, 3, 4]
+  device_map: auto
+  local_files_only: true
 
 fpn:
   lateral_dim: 256
-  use_p2: false
-  fuse: sum
+  fuse: sum      # 'sum' or 'concat'
 
 heatmap:
   # Target heatmap size [W, H]
