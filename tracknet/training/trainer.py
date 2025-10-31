@@ -20,15 +20,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
+from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
+import logging
 import math
+import random
 import time
 
 import torch
 from torch.utils.data import DataLoader
 
-from omegaconf import DictConfig
+from omegaconf import DictConfig, OmegaConf
 
 from tracknet.datasets import (
     PreprocessConfig,
@@ -40,13 +43,8 @@ from tracknet.datasets import (
     collate_sequences,
 )
 from tracknet.models import build_model
-from tracknet.training import (
-    HeatmapLossConfig,
-    build_heatmap_loss,
-    heatmap_argmax_coords,
-    visible_from_mask,
-)
-from tracknet.utils.logging import Logger, LoggerConfig, save_overlay_from_tensor
+from tracknet.training import HeatmapLossConfig, build_heatmap_loss, heatmap_argmax_coords, visible_from_mask
+from tracknet.utils.logging import Logger, LoggerConfig, save_image_from_tensor, save_overlay_from_tensor
 
 # Optional progress bars via tqdm
 try:  # pragma: no cover - optional dependency
@@ -62,8 +60,100 @@ class Trainer:
 
     cfg: DictConfig
 
+    def __post_init__(self) -> None:
+        """Emit a configuration summary as soon as the trainer is constructed."""
+
+        root_logger = logging.getLogger()
+        if not root_logger.handlers:
+            logging.basicConfig(level=logging.INFO)
+
+        summary = self._configuration_snapshot()
+        formatted = pformat(summary, indent=2)
+        logging.getLogger(__name__).info("Trainer initialization summary:\n%s", formatted)
+        print(f"[Trainer] Initialization summary:\n{formatted}")
+
     def _device(self) -> torch.device:
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    def _resolve_precision(self) -> Tuple[str, str, Optional[torch.dtype], bool]:
+        """Resolve precision-related runtime settings.
+
+        Returns:
+            A tuple ``(mode, device_type, autocast_dtype, use_grad_scaler_fp16)``.
+        """
+
+        device_type = "cuda" if torch.cuda.is_available() else "cpu"
+        mode = str(self.cfg.training.get("precision", "auto")).lower()
+        if mode == "auto":
+            mode = "fp16" if bool(self.cfg.training.get("amp", False)) else "fp32"
+
+        use_fp16 = mode == "fp16" and device_type == "cuda"
+        use_bf16 = mode == "bf16" and device_type in ("cuda", "cpu")
+
+        if use_fp16:
+            autocast_dtype = torch.float16
+        elif use_bf16:
+            autocast_dtype = torch.bfloat16
+        else:
+            autocast_dtype = None
+
+        return mode, device_type, autocast_dtype, use_fp16
+
+    def _configuration_snapshot(self) -> Dict[str, Any]:
+        """Build a structured summary of key configuration fields.
+
+        Returns:
+            A dictionary that captures runtime, data, training, and model highlights.
+        """
+
+        data_cfg = OmegaConf.to_container(self.cfg.data, resolve=True)
+        model_cfg = OmegaConf.to_container(self.cfg.model, resolve=True)
+        training_cfg = OmegaConf.to_container(self.cfg.training, resolve=True)
+        runtime_cfg = OmegaConf.to_container(self.cfg.runtime, resolve=True)
+
+        mode, device_type, autocast_dtype, use_grad_scaler = self._resolve_precision()
+        data_loader_cfg = training_cfg.get("data_loader", {}) if isinstance(training_cfg, dict) else {}
+        sequence_cfg = data_cfg.get("sequence", {}) if isinstance(data_cfg, dict) else {}
+        split_cfg = data_cfg.get("split", {}) if isinstance(data_cfg, dict) else {}
+
+        summary: Dict[str, Any] = {
+            "runtime": {
+                "run_id": runtime_cfg.get("run_id") if isinstance(runtime_cfg, dict) else None,
+                "seed": runtime_cfg.get("seed") if isinstance(runtime_cfg, dict) else None,
+                "log_dir": runtime_cfg.get("log_dir") if isinstance(runtime_cfg, dict) else None,
+                "ckpt_dir": runtime_cfg.get("ckpt_dir") if isinstance(runtime_cfg, dict) else None,
+                "device": str(self._device()),
+                "device_type": device_type,
+                "precision": mode,
+                "autocast_dtype": str(autocast_dtype) if autocast_dtype is not None else None,
+                "grad_scaler_enabled": use_grad_scaler,
+            },
+            "data": {
+                "root": data_cfg.get("root") if isinstance(data_cfg, dict) else None,
+                "mode": "sequence" if bool(sequence_cfg.get("enabled", False)) else "frame",
+                "train_games": len(split_cfg.get("train_games", [])) if isinstance(split_cfg, dict) else 0,
+                "val_games": len(split_cfg.get("val_games", [])) if isinstance(split_cfg, dict) else 0,
+                "preprocess": data_cfg.get("preprocess") if isinstance(data_cfg, dict) else None,
+                "sequence": sequence_cfg,
+            },
+            "training": {
+                "batch_size": training_cfg.get("batch_size") if isinstance(training_cfg, dict) else None,
+                "epochs": training_cfg.get("epochs") if isinstance(training_cfg, dict) else None,
+                "grad_clip": training_cfg.get("grad_clip", 0.0) if isinstance(training_cfg, dict) else 0.0,
+                "limit_train_batches": training_cfg.get("limit_train_batches", 0) if isinstance(training_cfg, dict) else 0,
+                "limit_val_batches": training_cfg.get("limit_val_batches", 0) if isinstance(training_cfg, dict) else 0,
+                "data_loader": data_loader_cfg,
+                "optimizer": training_cfg.get("optimizer") if isinstance(training_cfg, dict) else None,
+                "scheduler": training_cfg.get("scheduler") if isinstance(training_cfg, dict) else None,
+            },
+            "model": {
+                "pretrained_model_name": model_cfg.get("pretrained_model_name") if isinstance(model_cfg, dict) else None,
+                "backbone": model_cfg.get("backbone") if isinstance(model_cfg, dict) else None,
+                "decoder": model_cfg.get("decoder") if isinstance(model_cfg, dict) else None,
+                "heatmap": model_cfg.get("heatmap") if isinstance(model_cfg, dict) else None,
+            },
+        }
+        return summary
 
     # ---------------- Data -----------------
     def _build_dataloaders(self) -> tuple[DataLoader, Optional[DataLoader]]:
@@ -199,21 +289,11 @@ class Trainer:
         epochs = int(self.cfg.training.get("epochs", 1))
         grad_clip = float(self.cfg.training.get("grad_clip", 0.0))
         # Precision selection: prefer new `training.precision`, fallback to legacy `amp`
-        prec = str(self.cfg.training.get("precision", "auto")).lower()
-        if prec == "auto":
-            prec = "fp16" if bool(self.cfg.training.get("amp", False)) else "fp32"
-        device_type = "cuda" if torch.cuda.is_available() else "cpu"
-        use_fp16 = prec == "fp16" and device_type == "cuda"
-        use_bf16 = prec == "bf16" and (device_type == "cuda" or device_type == "cpu")
-        if use_fp16:
-            autocast_dtype = torch.float16
-        elif use_bf16:
-            autocast_dtype = torch.bfloat16
-        else:
-            autocast_dtype = None
+        prec, device_type, autocast_dtype, use_fp16 = self._resolve_precision()
+        use_bf16 = autocast_dtype == torch.bfloat16
 
         # GradScaler only for fp16 on CUDA
-        scaler = torch.cuda.amp.GradScaler(enabled=use_fp16)  # type: ignore[attr-defined]
+        scaler = torch.amp.GradScaler(enabled=use_fp16)  # type: ignore[attr-defined]
 
         # Limits for quick smoke tests
         limit_train = int(self.cfg.training.get("limit_train_batches", 0))
@@ -224,7 +304,15 @@ class Trainer:
         ckpt_dir.mkdir(parents=True, exist_ok=True)
         best_val = math.inf
 
-        logger = Logger(LoggerConfig(log_dir=str(self.cfg.runtime.log_dir), use_tensorboard=False))
+        runtime_cfg = self.cfg.runtime
+        run_id = runtime_cfg.get("run_id") if hasattr(runtime_cfg, "get") else getattr(runtime_cfg, "run_id", None)
+        logger = Logger(
+            LoggerConfig(
+                log_dir=str(runtime_cfg.get("log_dir") if hasattr(runtime_cfg, "get") else self.cfg.runtime.log_dir),
+                run_id=str(run_id) if run_id is not None else None,
+                use_tensorboard=False,
+            )
+        )
         for epoch in range(1, epochs + 1):
             model.train()
             t0 = time.time()
@@ -245,9 +333,9 @@ class Trainer:
 
             for bi, batch in enumerate(iter_train, start=1):
                 non_blocking = bool(self.cfg.training.get("data_loader", {}).get("pin_memory", False))
-                images = batch["images"].to(device, non_blocking=non_blocking)
-                targets = batch["heatmaps"].to(device, non_blocking=non_blocking)
-                masks = batch["masks"].to(device, non_blocking=non_blocking)
+                images = batch["images"].to(device, dtype=torch.float32, non_blocking=non_blocking)
+                targets = batch["heatmaps"].to(device, dtype=torch.float32, non_blocking=non_blocking)
+                masks = batch["masks"].to(device, dtype=torch.float32, non_blocking=non_blocking)
 
                 optimizer.zero_grad(set_to_none=True)
                 if autocast_dtype is not None:
@@ -295,9 +383,9 @@ class Trainer:
 
                     for vi, batch in enumerate(iter_val, start=1):
                         non_blocking = bool(self.cfg.training.get("data_loader", {}).get("pin_memory", False))
-                        images = batch["images"].to(device, non_blocking=non_blocking)
-                        targets = batch["heatmaps"].to(device, non_blocking=non_blocking)
-                        masks = batch["masks"].to(device, non_blocking=non_blocking)
+                        images = batch["images"].to(device, dtype=torch.float32, non_blocking=non_blocking)
+                        targets = batch["heatmaps"].to(device, dtype=torch.float32, non_blocking=non_blocking)
+                        masks = batch["masks"].to(device, dtype=torch.float32, non_blocking=non_blocking)
                         if autocast_dtype is not None:
                             ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
                         else:
@@ -309,23 +397,33 @@ class Trainer:
                         loss = criterion(outputs, targets, masks)
                         vloss += float(loss.detach().cpu())
                         vnum += 1
-                        if not saved_preview:
-                            out_dir = Path(self.cfg.runtime.log_dir) / "overlays" / f"epoch{epoch:03d}"
-                            out_dir.mkdir(parents=True, exist_ok=True)
-                            k = min(4, images.shape[0])
-                            denorm = bool(self.cfg.data.preprocess.get("normalize", True))
-                            for i in range(k):
-                                img_t = images[i].detach().cpu()
-                                hm_t = outputs[i].detach().cpu()
-                                save_overlay_from_tensor(
-                                    img_t,
-                                    hm_t,
-                                    out_dir / f"sample_{i}.png",
-                                    denormalize=denorm,
-                                )
-                            saved_preview = True
-                        if limit_val and vi >= limit_val:
-                            break
+                if not saved_preview:
+                    base_dir = Path(logger.dir)
+                    overlay_dir = base_dir / "overlays" / f"epoch{epoch:03d}"
+                    image_dir = base_dir / "inputs" / f"epoch{epoch:03d}"
+                    overlay_dir.mkdir(parents=True, exist_ok=True)
+                    image_dir.mkdir(parents=True, exist_ok=True)
+                    batch_size = images.shape[0]
+                    sample_size = min(4, batch_size)
+                    indices = random.sample(range(batch_size), sample_size)
+                    denorm = bool(self.cfg.data.preprocess.get("normalize", True))
+                    for idx in indices:
+                        img_t = images[idx].detach().cpu()
+                        hm_t = outputs[idx].detach().cpu()
+                        save_image_from_tensor(
+                            img_t,
+                            image_dir / f"sample_{idx:02d}.png",
+                            denormalize=denorm,
+                        )
+                        save_overlay_from_tensor(
+                            img_t,
+                            hm_t,
+                            overlay_dir / f"sample_{idx:02d}.png",
+                            denormalize=denorm,
+                        )
+                    saved_preview = True
+                    if limit_val and vi >= limit_val:
+                        break
                 val_loss = vloss / max(1, vnum)
 
             # Scheduler step per epoch
