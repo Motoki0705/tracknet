@@ -14,11 +14,12 @@ import torch
 from omegaconf import OmegaConf
 
 from tracknet.utils.config import add_config_cli_arguments, build_cfg
-from tracknet.training.trainer import Trainer, HeatmapModel
+from tracknet.training.trainer import Trainer
 from tracknet.training import (
     HeatmapLossConfig, build_heatmap_loss,
     heatmap_argmax_coords, visible_from_mask, l2_error, pck_at_r,
 )
+from tracknet.models import build_model
 
 
 def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
@@ -63,7 +64,7 @@ def main(argv: List[str] | None = None) -> int:
 
     # Build model and loss
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = HeatmapModel(cfg.model).to(device)
+    model = build_model(cfg.model).to(device)
     loss = build_heatmap_loss(HeatmapLossConfig(name=str(cfg.training.get('loss', {}).get('name', 'mse'))))
 
     # Load checkpoint

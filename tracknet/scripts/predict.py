@@ -14,7 +14,7 @@ import torch
 from PIL import Image
 
 from tracknet.utils.config import add_config_cli_arguments, build_cfg
-from tracknet.training.trainer import HeatmapModel
+from tracknet.models import build_model
 from tracknet.datasets.utils.augmentations import to_tensor_and_normalize
 
 
@@ -83,7 +83,7 @@ def main(argv: List[str] | None = None) -> int:
     )
 
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = HeatmapModel(cfg.model).to(device)
+    model = build_model(cfg.model).to(device)
 
     ckpt_path = Path(args.checkpoint) if args.checkpoint else _find_best_ckpt(cfg)
     if ckpt_path and ckpt_path.exists():
