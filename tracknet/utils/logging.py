@@ -1,12 +1,15 @@
 """Logging and visualization utilities for TrackNet.
 
 Provides a lightweight scalar logger (CSV + optional TensorBoard) and helpers
-to save heatmaps and image/heatmap overlays during validation.
+to save heatmaps, plain images, and image/heatmap overlays during validation.
+Each logger instance writes to an experiment-specific subdirectory to avoid
+collisions across runs.
 """
 
 from __future__ import annotations
 
 import csv
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional, Sequence, Tuple
@@ -29,11 +32,13 @@ class LoggerConfig:
     """Configuration for the scalar logger.
 
     Attributes:
-        log_dir: Directory where logs (CSV and TB if available) are written.
+        log_dir: Root directory where experiment logs are stored.
+        run_id: Optional identifier used to create a per-run subdirectory.
         use_tensorboard: If True and available, also log to TensorBoard.
     """
 
     log_dir: str
+    run_id: Optional[str] = None
     use_tensorboard: bool = False
 
 
@@ -41,7 +46,18 @@ class Logger:
     """Minimal scalar logger writing CSV and optionally TensorBoard."""
 
     def __init__(self, cfg: LoggerConfig) -> None:
-        self.dir = Path(cfg.log_dir)
+        base_dir = Path(cfg.log_dir)
+        base_dir.mkdir(parents=True, exist_ok=True)
+
+        # Select a per-run directory to avoid collisions between experiments.
+        base_name = cfg.run_id or time.strftime("run-%Y%m%d-%H%M%S")
+        run_dir = base_dir / base_name
+        suffix = 1
+        while run_dir.exists():
+            run_dir = base_dir / f"{base_name}-{suffix:02d}"
+            suffix += 1
+
+        self.dir = run_dir
         self.dir.mkdir(parents=True, exist_ok=True)
         self.csv_path = self.dir / "scalars.csv"
         self.csv_initialized = False
@@ -103,6 +119,24 @@ def tensor_to_pil(img: torch.Tensor, denormalize: bool = True,
     return Image.fromarray(x.permute(1, 2, 0).numpy(), mode="RGB")
 
 
+def save_image_from_tensor(img: torch.Tensor, path: Path,
+                           denormalize: bool = True,
+                           mean: Sequence[float] = IMAGENET_MEAN,
+                           std: Sequence[float] = IMAGENET_STD) -> None:
+    """Save a tensor image ``[C,H,W]`` to disk as PNG.
+
+    Args:
+        img: Image tensor.
+        path: Target path for the PNG image.
+        denormalize: Whether to apply ImageNet de-normalization.
+        mean: Channel-wise mean used when denormalizing.
+        std: Channel-wise std used when denormalizing.
+    """
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tensor_to_pil(img, denormalize=denormalize, mean=mean, std=std).save(path)
+
+
 def save_heatmap_png(hm: torch.Tensor, path: Path) -> None:
     """Save a heatmap ``[1,H,W]`` or ``[B,1,H,W]`` to a colored PNG.
 
@@ -143,5 +177,5 @@ def save_overlay_from_tensor(img_t: torch.Tensor, hm: torch.Tensor, path: Path,
     hm_img = Image.fromarray(x, mode="L").resize(base.size, Image.BILINEAR)
     overlay = Image.merge("RGBA", (hm_img, Image.new("L", hm_img.size), Image.new("L", hm_img.size), hm_img))
     blended = Image.blend(base, overlay, alpha=alpha)
+    path.parent.mkdir(parents=True, exist_ok=True)
     blended.save(path)
-
