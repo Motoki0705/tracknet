@@ -1,0 +1,9 @@
+# Configuration for TrackNet frame dataset visualization
+
+dataset:
+  root: "data/tracknet"
+  games: ["game1"]  # Specify which games to include
+  preprocess:
+    resize: [640, 360]  # Optional resize for visualization
+    normalize: false    # Keep in [0,1] range for visualization
+    flip_prob: 0.0      # No augmentation for visualization
