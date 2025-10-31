@@ -174,11 +174,11 @@ class PLHeatmapModule(pl.LightningModule):
         for idx in range(sample):
             img_t = images[idx].detach().cpu()
             hm_t = outputs[idx].detach().cpu()
-            save_image_from_tensor(
-                img_t,
-                image_dir / f"sample_{idx:02d}.png",
-                denormalize=denorm,
-            )
+            # save_image_from_tensor(
+            #     img_t,
+            #     image_dir / f"sample_{idx:02d}.png",
+            #     denormalize=denorm,
+            # )
             save_overlay_from_tensor(
                 img_t,
                 hm_t,

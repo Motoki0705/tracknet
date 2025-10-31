@@ -174,8 +174,34 @@ def save_overlay_from_tensor(img_t: torch.Tensor, hm: torch.Tensor, path: Path,
     x = hm.squeeze().detach().cpu()
     x = (x - x.min()) / (x.max() - x.min() + 1e-8)
     x = (x * 255.0).byte().numpy()
+    
+    # Resize heatmap to match input image size to handle scale mismatch
     hm_img = Image.fromarray(x, mode="L").resize(base.size, Image.BILINEAR)
-    overlay = Image.merge("RGBA", (hm_img, Image.new("L", hm_img.size), Image.new("L", hm_img.size), hm_img))
-    blended = Image.blend(base, overlay, alpha=alpha)
+    
+    # Create RGBA overlay with colormap (jet-like colors)
+    try:
+        import matplotlib.pyplot as plt  # type: ignore
+        import matplotlib.cm as cm  # type: ignore
+        
+        # Apply jet colormap to heatmap
+        hm_normalized = hm.squeeze().detach().cpu().numpy()
+        hm_normalized = (hm_normalized - hm_normalized.min()) / (hm_normalized.max() - hm_normalized.min() + 1e-8)
+        hm_colored = cm.jet(hm_normalized)[:, :, :3]  # Take RGB only, drop alpha
+        hm_colored = (hm_colored * 255.0).astype('uint8')
+        hm_colored_img = Image.fromarray(hm_colored, mode="RGB").resize(base.size, Image.BILINEAR)
+        
+        # Create overlay with proper alpha channel
+        overlay = Image.new("RGBA", base.size, (0, 0, 0, 0))
+        overlay.paste(hm_colored_img, (0, 0))
+        
+        # Apply alpha blending
+        blended = Image.alpha_composite(base, overlay)
+        blended = Image.blend(base, blended, alpha=alpha)
+        
+    except Exception:
+        # Fallback to grayscale overlay if matplotlib is not available
+        overlay = Image.merge("RGBA", (hm_img, Image.new("L", hm_img.size), Image.new("L", hm_img.size), hm_img))
+        blended = Image.blend(base, overlay, alpha=alpha)
+    
     path.parent.mkdir(parents=True, exist_ok=True)
     blended.save(path)
