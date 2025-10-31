@@ -11,9 +11,9 @@ from torchvision.ops import FeaturePyramidNetwork
 FuseType = Literal["sum", "concat"]
 
 @dataclass
-class FPNDecoderCfg:
+class FPNDecoderConfig:
     in_channels: List[int]        # 例: ConvNeXt の [C2..C5]
-    fpn_dim: int = 256
+    lateral_dim: int = 256
     fuse: FuseType = "sum"
     out_size: Optional[Tuple[int, int]] = None  # (H,W)
 
@@ -22,12 +22,12 @@ class FPNDecoderTorchvision(nn.Module):
     torchvision.ops.FeaturePyramidNetwork を使った簡易版。
     入力は [C2, C3, C4, C5]（高→低解像度の順）でも [C1..C5] でも可。
     """
-    def __init__(self, cfg: FPNDecoderCfg):
+    def __init__(self, cfg: FPNDecoderConfig):
         super().__init__()
         self.cfg = cfg
-        self.fpn = FeaturePyramidNetwork(cfg.in_channels, cfg.fpn_dim)
+        self.fpn = FeaturePyramidNetwork(cfg.in_channels, cfg.lateral_dim)
         if cfg.fuse == "concat":
-            self.reduce = nn.Conv2d(cfg.fpn_dim * len(cfg.in_channels), cfg.fpn_dim, 1)
+            self.reduce = nn.Conv2d(cfg.lateral_dim * len(cfg.in_channels), cfg.lateral_dim, 1)
         else:
             self.reduce = None
 
@@ -54,9 +54,9 @@ if __name__ == "__main__":
     Ws = [64, 32, 16, 8]
     feats = [torch.randn(B, c, h, w) for c, h, w in zip(C_ins, Hs, Ws)]
 
-    cfg = FPNDecoderCfg(
+    cfg = FPNDecoderConfig(
         in_channels=C_ins,
-        fpn_dim=256,
+        lateral_dim=256,
         fuse="concat",
         out_size=(128, 128),
     )
