@@ -8,8 +8,9 @@ Return format for ``__getitem__``:
 - ``images``: ``List[Tensor]`` or a stacked tensor of shape ``[T, C, H, W]``.
 - ``coords``: ``List[tuple[float, float]]`` of length ``T``.
 - ``visibility``: ``List[int]`` of length ``T``.
-- ``meta``: dict including identifiers and the original image size of each
-  element under ``meta["sizes"]`` as a list of ``(W, H)``.
+- ``meta``: dict including identifiers and image sizes:
+  - ``"orig_sizes"``: List of ``(W, H)`` of original images before augmentations.
+  - ``"sizes"``: List of ``(W, H)`` of images after augmentations (matches coord space).
 """
 
 from __future__ import annotations
@@ -84,7 +85,8 @@ class BaseSequenceDataset(Dataset):
         images: List[torch.Tensor] = []
         coords: List[Tuple[float, float]] = []
         vis: List[int] = []
-        sizes: List[Tuple[int, int]] = []
+        orig_sizes: List[Tuple[int, int]] = []
+        curr_sizes: List[Tuple[int, int]] = []
 
         # Use a consistent random decision per window (e.g. for flip)
         # by letting ``apply_augmentations_single`` handle RNG internally. Here
@@ -95,9 +97,10 @@ class BaseSequenceDataset(Dataset):
             v = int(rec.get("visibility", 1))
 
             img = Image.open(path).convert("RGB")
-            sizes.append(img.size)
+            orig_sizes.append(img.size)
 
             img, adj_coord = apply_augmentations_single(img, coord, self.preprocess)
+            curr_sizes.append(img.size)
             img_t = to_tensor_and_normalize(img, normalize=self.preprocess.normalize)
 
             images.append(img_t)
@@ -110,6 +113,9 @@ class BaseSequenceDataset(Dataset):
             "images": images_t,
             "coords": coords,
             "visibility": vis,
-            "meta": {"sizes": sizes},
+            "meta": {
+                "orig_sizes": orig_sizes,
+                "sizes": curr_sizes,
+            },
         }
 

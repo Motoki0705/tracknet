@@ -80,7 +80,7 @@ def collate_frames(
     masks: List[torch.Tensor] = []
     for s in batch:
         vis = int(s.get("visibility", 1))
-        size = tuple(s["meta"]["size"])  # (W, H)
+        size = tuple(s["meta"]["size"])  # Current image size after augmentations (W, H)
         cx, cy = _scale_coord_to_heatmap(tuple(s["coord"]), size, heatmap_size)
         hm = gaussian_2d(hm_w, hm_h, cx, cy, sigma)
         if vis == 0:
@@ -123,7 +123,7 @@ def collate_sequences(
     masks: List[torch.Tensor] = []
     for s in batch:
         T = s["images"].shape[0]
-        sizes = [tuple(x) for x in s["meta"]["sizes"]]
+        sizes = [tuple(x) for x in s["meta"]["sizes"]]  # Current image sizes after augmentations
         hms_t: List[torch.Tensor] = []
         mks_t: List[torch.Tensor] = []
         for t in range(T):

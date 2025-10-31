@@ -13,8 +13,10 @@ Key fields returned by ``__getitem__``:
 - ``image``: ``torch.FloatTensor`` of shape ``[C, H, W]`` in ``[0, 1]`` range.
 - ``coord``: ``tuple[float, float]`` as ``(x, y)`` in pixels for the image.
 - ``visibility``: ``int`` in ``{0, 1}``.
-- ``meta``: dict containing auxiliary info such as ``{"size": (W, H)}`` and
-  optional file path/context identifiers.
+- ``meta``: dict containing auxiliary info such as:
+  - ``"orig_size"``: ``(W, H)`` of the original image before augmentations.
+  - ``"size"``: ``(W, H)`` of the image after augmentations (matches coord space).
+  - optional file path/context identifiers.
 
 Note:
 - Augmentations (e.g., horizontal flip, optional resize, normalization) are
@@ -116,12 +118,16 @@ class BaseImageDataset(Dataset):
         # Convert to tensor and optionally normalize
         img_tensor = to_tensor_and_normalize(img, normalize=self.preprocess.normalize)
 
+        # Get current image size after augmentations
+        curr_w, curr_h = img.size
+
         sample: Dict[str, Any] = {
             "image": img_tensor,
             "coord": coord,
             "visibility": visibility,
             "meta": {
-                "size": (orig_w, orig_h),
+                "orig_size": (orig_w, orig_h),
+                "size": (curr_w, curr_h),
                 "path": path,
                 **{k: v for k, v in rec.items() if k not in {"path", "coord", "visibility"}},
             },
