@@ -1,19 +1,12 @@
-"""ViT backbone wrapper for TrackNet.
+"""ViT backbone wrapper for TrackNet (minimal, HF only).
 
-This module provides a wrapper that can use a Hugging Face ViT (via
-``AutoImageProcessor`` and ``AutoModel``) when available, and a lightweight
-fallback patch embedding when offline. The forward returns patch tokens
-reshaped to a spatial grid ``[B, H_p, W_p, C]``.
-
-Usage:
-    - Online/with cache: initialize with ``use_pretrained=True`` and a
-      ``pretrained_model_name``.
-    - Offline fallback: initialize with ``use_pretrained=False`` to use a
-      simple Conv2d patch embedding with stride 16.
+- 常に Hugging Face の ViT (AutoModel) を使用。
+- 入力:  images  … [B, 3, H, W]  (呼び出し側でモデル想定どおりの正規化済みを推奨)
+- 出力:  grid    … [B, H//16, W//16, C]
+- グリッド復元は常に (H//16, W//16)。H と W は 16 の倍数を想定。
 """
 
 from __future__ import annotations
-
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
@@ -23,120 +16,92 @@ import torch.nn as nn
 
 @dataclass
 class ViTBackboneConfig:
-    """Configuration for the ViT backbone wrapper.
-
-    Attributes:
-        pretrained_model_name: Hugging Face model id (e.g.,
-            ``facebook/dinov3-vitb16-pretrain-lvd1689m``).
-        use_pretrained: If True, try to load HF model with
-            ``local_files_only=True``. If loading fails, an exception is raised.
-            If False, use a lightweight Conv2d patch embedding fallback.
-        fallback_dim: Output channel dimension for the fallback embedding.
-        patch_size: Patch size for fallback embedding (default 16).
-    """
-
-    pretrained_model_name: str
-    use_pretrained: bool = True
-    fallback_dim: int = 384
-    patch_size: int = 16
+    """Configuration (HF only, minimal)."""
+    pretrained_model_name: str = "facebook/dinov3-vitb16-pretrain-lvd1689m"
+    device_map: Optional[str] = "auto"
+    local_files_only: bool = True
+    patch_size: int = 16              # 要件: グリッドは H//16, W//16 に固定
 
 
 class ViTBackbone(nn.Module):
     """Backbone that outputs patch tokens as a spatial grid.
-
-    Forward input shape is ``[B, C, H, W]`` and output is ``[B, H_p, W_p, C]``.
+    Input:  [B, 3, H, W]
+    Output: [B, H//ps, W//ps, C]  (ps=16)
     """
 
     def __init__(self, cfg: ViTBackboneConfig) -> None:
         super().__init__()
         self.cfg = cfg
-        self._mode = "pretrained" if cfg.use_pretrained else "fallback"
+        self.patch_size = int(cfg.patch_size)
 
-        if self._mode == "pretrained":
-            print("Using Hugging Face ViT pretrained backbone.")
-            try:  # Lazy import to avoid hard dependency when offline
-                from transformers import AutoImageProcessor, AutoModel
-            except Exception as e:  # pragma: no cover - import environment specific
-                raise RuntimeError(
-                    "transformers not available; set use_pretrained=False to use fallback"
-                ) from e
+        try:
+            from transformers import AutoModel  # lazy import
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError("transformers が見つかりません。`pip install transformers` を実行してください。") from e
 
-            # Hold references in submodules for proper .to(device)
-            self.processor = AutoImageProcessor.from_pretrained(
-                cfg.pretrained_model_name
-            )
+        # モデル読み込み（ローカルキャッシュ優先）
+        try:
             self.model = AutoModel.from_pretrained(
-                cfg.pretrained_model_name, 
-                device_map="auto", 
+                cfg.pretrained_model_name,
+                device_map=cfg.device_map,
+                local_files_only=cfg.local_files_only,
             )
-            # Determine token dims
-            hidden_size = int(self.model.config.hidden_size)
-            self.out_dim = hidden_size
-        else:
-            # Fallback simple patch embedding: Conv2d with stride=patch_size
-            self.processor = None  # type: ignore[assignment]
-            self.model = None  # type: ignore[assignment]
-            self.out_dim = int(cfg.fallback_dim)
-            ps = int(cfg.patch_size)
-            self.embed = nn.Conv2d(3, self.out_dim, kernel_size=ps, stride=ps)
+        except Exception as e:
+            raise RuntimeError(
+                "事前学習済み ViT のローカル読み込みに失敗しました。"
+                "事前にキャッシュするか、config.local_files_only=False を指定してください。"
+            ) from e
 
-    @torch.no_grad()
-    def _forward_pretrained(self, images: torch.Tensor) -> torch.Tensor:
-        """Forward through HF model and return patch grid.
-
-        Args:
-            images: Float tensor ``[B, C, H, W]`` in 0..1. Converted to PIL and
-                processed by the associated ``AutoImageProcessor``.
-
-        Returns:
-            Tensor ``[B, H_p, W_p, C]`` of patch tokens.
-        """
-
-        from torchvision.transforms.functional import to_pil_image  # lazy import
-
-        B = images.shape[0]
-        pil_list = [to_pil_image(images[i].cpu()) for i in range(B)]
-        inputs = self.processor(images=pil_list, return_tensors="pt")
-        inputs = {k: v.to(next(self.model.parameters()).device) for k, v in inputs.items()}
-        outputs = self.model(**inputs)
-
-        last = outputs.last_hidden_state  # [B, 1+reg+patch, C]
-        num_reg = int(getattr(self.model.config, "num_register_tokens", 0))
-        patch = last[:, 1 + num_reg :, :]  # drop cls and registers
-
-        # Infer patch grid size (H_p x W_p)
-        tokens = patch.shape[1]
-        # Heuristic: assume square grid if possible
-        w = int(torch.tensor(tokens).sqrt().item())
-        h = tokens // w if w > 0 else tokens
-        grid = patch.unflatten(1, (h, w))  # [B, H_p, W_p, C]
-        return grid
-
-    def _forward_fallback(self, images: torch.Tensor) -> torch.Tensor:
-        """Fallback conv patch embedding to approximate ViT tokens.
-
-        Args:
-            images: Float tensor ``[B, C, H, W]``.
-
-        Returns:
-            Tensor ``[B, H_p, W_p, C]``.
-        """
-
-        x = self.embed(images)  # [B, C, H_p, W_p]
-        x = x.permute(0, 2, 3, 1).contiguous()
-        return x
+        # init で一度だけ取得して保持
+        self.hidden_dim: int = int(self.model.config.hidden_size)
+        self.num_reg: int = int(getattr(self.model.config, "num_register_tokens", 0))
+        self.has_cls: bool = True  # ViT は通常クラス埋め込みを先頭に持つ
+        # （任意）モデル側の patch_size と整合性チェック
+        model_ps = getattr(self.model.config, "patch_size", None)
+        if model_ps is not None:
+            model_ps = model_ps if isinstance(model_ps, int) else int(model_ps[0])
+            if model_ps != self.patch_size:
+                raise ValueError(
+                    f"config.patch_size({self.patch_size}) と model.config.patch_size({model_ps}) が不一致です。"
+                    " H//16, W//16 を前提とするため、patch_size=16 のモデルを使用してください。"
+                )
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         """Compute patch token grid from input images.
 
         Args:
-            images: Float tensor ``[B, C, H, W]``.
+            images: [B, 3, H, W] （モデル期待どおりに前処理済みを推奨）
 
         Returns:
-            Tensor of shape ``[B, H_p, W_p, C]``.
+            [B, H//16, W//16, C]
         """
+        if images.dim() != 4 or images.size(1) != 3:
+            raise ValueError(f"Expected images shape [B,3,H,W], got {tuple(images.shape)}")
 
-        if self._mode == "pretrained":
-            return self._forward_pretrained(images)
-        return self._forward_fallback(images)
+        B, _, H, W = images.shape
+        ps = self.patch_size
+        if (H % ps) != 0 or (W % ps) != 0:
+            raise ValueError(f"H({H}) と W({W}) は patch_size({ps}) の倍数である必要があります。")
 
+        Hp, Wp = H // ps, W // ps
+
+        # 余計な処理を避けてダイレクトに入力
+        # ※ 呼び出し側で正規化（mean/std）を合わせてください。
+        outputs = self.model(pixel_values=images)  # last_hidden_state: [B, 1+reg+N, C]
+        last = outputs.last_hidden_state
+        if last is None:
+            raise RuntimeError("last_hidden_state が None です。")
+
+        # init で取得した num_reg / has_cls を使用
+        start_idx = (1 if self.has_cls else 0) + self.num_reg
+        patch = last[:, start_idx:, :]  # [B, N, C], N should be Hp*Wp
+
+        expected = Hp * Wp
+        if patch.size(1) != expected:
+            raise RuntimeError(
+                f"トークン数不一致: 期待 {expected} (= {Hp}x{Wp}) / 実際 {patch.size(1)}。"
+                " 入力前処理（リサイズ/切り抜き）で形状が変わっていないか確認してください。"
+            )
+
+        grid = patch.unflatten(1, (Hp, Wp))  # -> [B, Hp, Wp, C]
+        return grid

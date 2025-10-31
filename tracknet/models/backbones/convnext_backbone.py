@@ -1,14 +1,11 @@
 """ConvNeXt backbone wrapper providing multi-scale features for FPN.
 
-Supports two modes:
-- Hugging Face (HF) mode: loads a ConvNeXt-based backbone via AutoModel
-  (or AutoBackbone) with ``local_files_only=True`` and returns ``hidden_states``
-  as feature maps. Requires a locally cached pretrained model.
-- Fallback torchvision mode: uses ``torchvision.models.convnext_tiny`` and
-  ``create_feature_extractor`` to obtain intermediate feature maps.
+Always uses a Hugging Face (HF) pretrained ConvNeXt via AutoModel and returns
+``hidden_states`` as feature maps. It expects the model to be cached locally
+(``local_files_only=True`` by default).
 
 Output format:
-- A list of tensors ``[C3, C4, C5]`` (optionally C2), each with shape
+- A list of tensors ``[C1, C2, C3, C4, C5]`` (by default), each with shape
   ``[B, C_i, H_i, W_i]`` ordered from higher to lower resolution.
 """
 
@@ -23,86 +20,60 @@ import torch.nn as nn
 
 @dataclass
 class ConvNeXtBackboneConfig:
-    """Configuration for ConvNeXt backbone.
+    """Configuration for ConvNeXt backbone (HF only).
 
     Attributes:
         pretrained_model_name: HF model identifier.
-        use_pretrained: If True, try HF (local only). If False, use torchvision fallback.
-        return_stages: Indices of hidden_states to return (HF mode). Defaults to [2,3,4].
-        tv_model: Torchvision variant name for fallback (e.g., 'convnext_tiny').
+        return_stages: Indices of hidden_states to return (default: (0,1,2,3,4)).
+        device_map: Passed to HF .from_pretrained (e.g., "auto" or None).
+        local_files_only: If True, load only from local cache.
     """
-
     pretrained_model_name: str = "facebook/dinov3-convnext-base-pretrain-lvd1689m"
-    use_pretrained: bool = True
-    return_stages: Sequence[int] = (2, 3, 4)
-    tv_model: str = "convnext_tiny"
+    return_stages: Sequence[int] = (0, 1, 2, 3, 4)  # <-- C1..C5 をデフォルトで返す
+    device_map: Optional[str] = "auto"
+    local_files_only: bool = True
 
 
 class ConvNeXtBackbone(nn.Module):
-    """Return multi-scale ConvNeXt features suitable for FPN decoders."""
+    """Return multi-scale ConvNeXt features suitable for FPN decoders (HF only)."""
 
     def __init__(self, cfg: ConvNeXtBackboneConfig) -> None:
         super().__init__()
         self.cfg = cfg
-        self._mode = "pretrained" if cfg.use_pretrained else "fallback"
+        print("Using Hugging Face ConvNeXt pretrained backbone.")
 
-        if self._mode == "pretrained":
-            print("Using Hugging Face ConvNeXt pretrained backbone.")
-            try:
-                from transformers import AutoModel
-            except Exception as e:  # pragma: no cover
-                raise RuntimeError("transformers not available; use_pretrained=False for fallback") from e
+        try:
+            from transformers import AutoModel
+        except Exception as e:  # pragma: no cover
+            raise RuntimeError(
+                "transformers is not available. Please install `transformers` to use this backbone."
+            ) from e
+
+        try:
             self.model = AutoModel.from_pretrained(
-                cfg.pretrained_model_name, devide_map="auto"
+                cfg.pretrained_model_name,
+                device_map=cfg.device_map,          # fixed: device_map
+                local_files_only=cfg.local_files_only,
             )
-        else:
-            print("Using torchvision ConvNeXt fallback backbone.")
-            # Torchvision fallback
-            from torchvision.models import convnext_tiny, convnext_small, convnext_base, convnext_large
-            from torchvision.models.feature_extraction import create_feature_extractor
-
-            tv_name = cfg.tv_model
-            if tv_name == "convnext_tiny":
-                base = convnext_tiny(weights=None)
-            elif tv_name == "convnext_small":
-                base = convnext_small(weights=None)
-            elif tv_name == "convnext_base":
-                base = convnext_base(weights=None)
-            elif tv_name == "convnext_large":
-                base = convnext_large(weights=None)
-            else:
-                raise ValueError(f"Unsupported tv_model: {tv_name}")
-
-            # Return nodes for multi-scale features; empirically valid for torchvision ConvNeXt
-            return_nodes = {
-                "features.1": "C3",  # ~1/8 (depending on variant)
-                "features.2": "C4",  # ~1/16
-                "features.3": "C5",  # ~1/32
-            }
-            self.extractor = create_feature_extractor(base, return_nodes=return_nodes)
+        except Exception as e:
+            raise RuntimeError(
+                "Failed to load the pretrained model from local cache. "
+                "Ensure the model is cached locally or set `local_files_only=False` in the config."
+            ) from e
 
     def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         """Compute multi-scale feature maps.
 
         Args:
-            x: Input image tensor ``[B,3,H,W]``.
+            x: Input image tensor ``[B, 3, H, W]``.
 
         Returns:
-            List of feature maps ``[C3, C4, C5]`` with decreasing spatial sizes.
+            List of feature maps (default ``[C1, C2, C3, C4, C5]``) with decreasing spatial sizes.
         """
-
-        if self._mode == "pretrained":
-            out = self.model(x, output_hidden_states=True, return_dict=True)
-            hs = out.hidden_states  # type: ignore[attr-defined]
-            if hs is None:
-                raise RuntimeError("HF ConvNeXt did not return hidden_states. Set output_hidden_states=True.")
-            feats: List[torch.Tensor] = []
-            for idx in self.cfg.return_stages:
-                f = hs[idx]
-                # Ensure NCHW (HF returns [B, C, H, W] already for ConvNeXt)
-                feats.append(f)
-            return feats
-        else:
-            fx = self.extractor(x)
-            return [fx["C3"], fx["C4"], fx["C5"]]
-
+        out = self.model(x, output_hidden_states=True, return_dict=True)
+        hs = out.hidden_states  # type: ignore[attr-defined]
+        feats: List[torch.Tensor] = []
+        for idx in self.cfg.return_stages:
+            f = hs[idx]  # expected [B, C, H, W]
+            feats.append(f)
+        return feats
