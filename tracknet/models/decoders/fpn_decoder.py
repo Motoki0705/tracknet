@@ -35,7 +35,6 @@ class FPNDecoderTorchvision(nn.Module):
         x = OrderedDict((f"c{i}", t) for i, t in enumerate(feats))  # 高→低の順に保持
         pyr = self.fpn(x)  # OrderedDict（高解像→低解像の順で返る）
         maps = list(pyr.values())
-        print(maps[0].shape)
 
         # 出力解像度
         H, W = self.cfg.out_size or maps[0].shape[-2:]

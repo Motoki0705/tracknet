@@ -137,4 +137,4 @@ if __name__ == "__main__":
     )
     dec = HRDecoder(cfg)
     y = dec(feats)
-    print(y.shape)  # [B, 256, H//4, W//4] = C2 解像度
+    print(f"HRDecoder output shape: {y.shape}")  # [B, 256, H//4, W//4] = C2 解像度
