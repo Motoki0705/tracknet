@@ -34,6 +34,7 @@
     - `resize` は `(width, height)` 順の2要素（未指定時は `null`）。
   - `sequence: { enabled: bool, length: int, stride: int }`
 - `configs/model/<name>.yaml`
+  - `model_name: str` モデル名
   - `pretrained_model_name: str` HFモデル識別子
   - `backbone: {...}`（例: ViTなら `{freeze, device_map, local_files_only, patch_size}`／ConvNeXtなら `{freeze, return_stages, device_map, local_files_only}`）
   - `decoder` or `fpn`:
