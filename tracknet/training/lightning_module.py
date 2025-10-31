@@ -49,6 +49,21 @@ class PLHeatmapModule(pl.LightningModule):
         beta = float(tcfg.get("loss", {}).get("beta", 4.0)) if hasattr(tcfg, "loss") else 4.0
         self.criterion = build_heatmap_loss(HeatmapLossConfig(name=lname, alpha=alpha, beta=beta))
 
+        # Freeze schedule: freeze backbone for the first N epochs, then unfreeze
+        self._freeze_epochs: int = int(self.cfg.training.get("backbone_freeze_epochs", 0))
+        # Detect current frozen state (may be frozen by model config or by us below)
+        self._backbone_frozen: bool = False
+        try:
+            if hasattr(self.model, "backbone"):
+                self._backbone_frozen = any((not p.requires_grad) for p in self.model.backbone.parameters())
+        except Exception:
+            self._backbone_frozen = False
+
+        # If a freeze schedule is defined, enforce initial freeze regardless of model default
+        if self._freeze_epochs > 0 and hasattr(self.model, "backbone"):
+            self._set_backbone_requires_grad(False)
+            self._backbone_frozen = True
+
         # Preview saving state
         self._preview_saved_epoch: int = -1
 
@@ -89,7 +104,9 @@ class PLHeatmapModule(pl.LightningModule):
         name = str(ocfg.get("name", "adamw")).lower()
         lr = float(ocfg.get("lr", 5e-4))
         wd = float(ocfg.get("weight_decay", 0.0))
-        params = [p for p in self.model.parameters() if p.requires_grad]
+        # Include all parameters so that late unfreeze takes effect without
+        # reconstructing the optimizer.
+        params = list(self.model.parameters())
 
         if name == "adamw":
             optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=wd)
@@ -102,8 +119,30 @@ class PLHeatmapModule(pl.LightningModule):
         scfg = self.cfg.training.get("scheduler", {})
         sname = str(scfg.get("name", "cosine")).lower()
         epochs = int(self.cfg.training.get("epochs", 1))
+        warmup_epochs = int(scfg.get("warmup_epochs", 0))
+        warmup_start = float(scfg.get("warmup_start_factor", 0.1))
         if sname == "cosine":
-            scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
+            # Optional linear warmup followed by cosine decay
+            if warmup_epochs > 0:
+                total_after = max(1, epochs - warmup_epochs)
+                linear = torch.optim.lr_scheduler.LinearLR(
+                    optimizer,
+                    start_factor=max(1e-6, min(1.0, warmup_start)),
+                    end_factor=1.0,
+                    total_iters=warmup_epochs,
+                )
+                cosine = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer,
+                    T_max=total_after,
+                )
+                scheduler = torch.optim.lr_scheduler.SequentialLR(
+                    optimizer,
+                    schedulers=[linear, cosine],
+                    milestones=[warmup_epochs],
+                )
+            else:
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
+
             return {
                 "optimizer": optimizer,
                 "lr_scheduler": {
@@ -147,3 +186,35 @@ class PLHeatmapModule(pl.LightningModule):
                 denormalize=denorm,
             )
 
+    # -------------------------- Epoch hooks --------------------------
+    def on_train_epoch_start(self) -> None:  # type: ignore[override]
+        """Handle scheduled backbone (un)freezing at epoch boundaries.
+
+        Freezes the backbone for the first ``training.backbone_freeze_epochs``
+        epochs, then unfreezes it afterward.
+        """
+        if not hasattr(self.model, "backbone"):
+            return
+
+        if self._freeze_epochs <= 0:
+            return
+
+        if self.current_epoch < self._freeze_epochs:
+            # Ensure frozen during warmup period
+            if not self._backbone_frozen:
+                self._set_backbone_requires_grad(False)
+                self._backbone_frozen = True
+                self.print(f"[Backbone] Frozen (epoch {self.current_epoch} < {self._freeze_epochs})")
+        else:
+            # Unfreeze once warmup period is over
+            if self._backbone_frozen:
+                self._set_backbone_requires_grad(True)
+                self._backbone_frozen = False
+                self.print(f"[Backbone] Unfrozen at epoch {self.current_epoch}")
+
+    def _set_backbone_requires_grad(self, flag: bool) -> None:
+        try:
+            for p in self.model.backbone.parameters():
+                p.requires_grad = flag
+        except Exception:
+            pass
