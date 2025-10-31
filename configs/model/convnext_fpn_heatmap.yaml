@@ -3,11 +3,12 @@ pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
 
 backbone:
   freeze: true
-  return_stages: [0, 1, 2, 3, 4]
+  return_stages: [1, 2, 3, 4]
   device_map: auto
   local_files_only: true
 
 fpn:
+  in_channels: [128, 256, 512, 1024]
   lateral_dim: 256
   fuse: sum      # 'sum' or 'concat'
 

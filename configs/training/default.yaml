@@ -1,11 +1,12 @@
 # Optimization and training defaults
 seed: 42
 
-batch_size: 8
-epochs: 1
+batch_size: 16
+epochs: 20
 amp: true  # deprecated; use `precision` if可能
 precision: fp16  # one of: fp32, fp16, bf16
 grad_clip: 1.0
+backbone_freeze_epochs: 10
 
 # DataLoader performance tuning
 data_loader:
@@ -22,7 +23,8 @@ optimizer:
 
 scheduler:
   name: cosine
-  warmup_epochs: 5
+  warmup_epochs: 3
+  warmup_start_factor: 0.1
 
 # Output directories (resolved and created by utils/config.py)
 output_dir: outputs
