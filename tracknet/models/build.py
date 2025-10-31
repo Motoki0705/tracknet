@@ -19,8 +19,9 @@ from tracknet.models.backbones.convnext_backbone import (
     ConvNeXtBackboneConfig,
 )
 from tracknet.models.backbones.vit_backbone import ViTBackbone, ViTBackboneConfig
-from tracknet.models.decoders.fpn_decoder import FPNDecoder, FPNDecoderConfig
+from tracknet.models.decoders.fpn_decoder import FPNDecoderTorchvision, FPNDecoderConfig
 from tracknet.models.decoders.upsampling_decoder import UpsamplingDecoder
+from tracknet.models.decoders.hrnet_decoder import HRDecoder, HRDecoderConfig
 from tracknet.models.heads.heatmap_head import HeatmapHead
 
 
@@ -33,13 +34,14 @@ class HeatmapModel(nn.Module):
 
     def __init__(self, model_cfg: DictConfig) -> None:
         super().__init__()
+        model_name = getattr(model_cfg, "model_name", "unknown")
         hm_w, hm_h = int(model_cfg.heatmap.size[0]), int(model_cfg.heatmap.size[1])
         out_size = (hm_h, hm_w)  # NCHW expects (H, W)
 
         backbone_cfg = getattr(model_cfg, "backbone", {})
         self.freeze_backbone = bool(backbone_cfg.get("freeze", True))
 
-        if hasattr(model_cfg, "fpn"):
+        if model_name == "convnext_fpn_heatmap":
             self.variant = "convnext_fpn"
             self.backbone = ConvNeXtBackbone(
                 ConvNeXtBackboneConfig(
@@ -58,7 +60,7 @@ class HeatmapModel(nn.Module):
                     local_files_only=bool(backbone_cfg.get("local_files_only", True)),
                 )
             )
-            self.decoder = FPNDecoder(
+            self.decoder = FPNDecoderTorchvision(
                 FPNDecoderConfig(
                     in_channels=[int(c) for c in model_cfg.fpn.in_channels],
                     lateral_dim=int(model_cfg.fpn.get("lateral_dim", 256)),
@@ -67,7 +69,7 @@ class HeatmapModel(nn.Module):
                 )
             )
             self.head = HeatmapHead(int(model_cfg.fpn.get("lateral_dim", 256)))
-        elif hasattr(model_cfg, "decoder"):
+        elif model_name == "vit_heatmap":
             self.variant = "vit_upsample"
             self.backbone = ViTBackbone(
                 ViTBackboneConfig(
@@ -99,8 +101,36 @@ class HeatmapModel(nn.Module):
                 dropout=float(model_cfg.decoder.get("dropout", 0.0)),
             )
             self.head = HeatmapHead(channels[-1])
+        elif model_name == "convnext_hrnet_heatmap":
+            self.variant = "convnext_hrnet"
+            self.backbone = ConvNeXtBackbone(
+                ConvNeXtBackboneConfig(
+                    pretrained_model_name=str(
+                        model_cfg.get(
+                            "pretrained_model_name",
+                            "facebook/dinov3-convnext-base-pretrain-lvd1689m",
+                        )
+                    ),
+                    return_stages=tuple(
+                        int(s) for s in backbone_cfg.get("return_stages", (1, 2, 3, 4))
+                    ),
+                    device_map=str(backbone_cfg.get("device_map", "auto"))
+                    if backbone_cfg.get("device_map", "auto") is not None
+                    else None,
+                    local_files_only=bool(backbone_cfg.get("local_files_only", True)),
+                )
+            )
+            self.decoder = HRDecoder(
+                HRDecoderConfig(
+                    in_channels=[int(c) for c in model_cfg.hrnet.in_channels],
+                    widths=[int(w) for w in model_cfg.hrnet.widths],
+                    num_units=int(model_cfg.hrnet.get("num_units", 2)),
+                    out_channels=int(model_cfg.hrnet.get("out_channels", model_cfg.hrnet.widths[0])),
+                )
+            )
+            self.head = HeatmapHead(int(model_cfg.hrnet.get("out_channels", model_cfg.hrnet.widths[0])))
         else:
-            raise ValueError("model config must contain either 'decoder' (ViT) or 'fpn' (ConvNeXt)")
+            raise ValueError(f"Unknown model_name: {model_name}. Supported: convnext_fpn_heatmap, vit_heatmap, convnext_hrnet_heatmap")
 
         if self.freeze_backbone:
             for param in self.backbone.parameters():
@@ -116,6 +146,11 @@ class HeatmapModel(nn.Module):
             feats = self.backbone(images)  # type: ignore[call-arg]
             pyramid = self.decoder(feats)  # type: ignore[arg-type]
             return self.head(pyramid)
+        
+        if self.variant == "convnext_hrnet":
+            feats = self.backbone(images)  # type: ignore[call-arg]
+            hr_features = self.decoder(feats)  # type: ignore[arg-type]
+            return self.head(hr_features)
 
 
 def build_model(model_cfg: DictConfig) -> nn.Module:
