@@ -22,6 +22,7 @@ FuseType = Literal["sum", "concat"]
 
 @dataclass
 class FPNDecoderConfig:
+    in_channels: Sequence[int] = (3, 128, 256, 512, 1024)
     lateral_dim: int = 256
     fuse: FuseType = "sum"
     out_size: Optional[Tuple[int, int]] = None  # (H, W)
@@ -32,25 +33,25 @@ class FPNDecoder(nn.Module):
     Expects features ordered as [C1, C2, C3, C4, C5] (highest -> lowest resolution).
     """
 
-    def __init__(self, in_channels: Sequence[int], cfg: FPNDecoderConfig) -> None:
+    def __init__(self, cfg: FPNDecoderConfig) -> None:
         super().__init__()
-        assert len(in_channels) >= 3, "Expect at least 3 scales (e.g., [C1,C2,C3])"
+        assert len(cfg.in_channels) >= 3, "Expect at least 3 scales (e.g., [C1,C2,C3])"
         self.cfg = cfg
 
         # Lateral 1x1 projections to a unified channel dim
         self.lateral = nn.ModuleList(
-            [nn.Conv2d(c, cfg.lateral_dim, kernel_size=1) for c in in_channels]
+            [nn.Conv2d(c, cfg.lateral_dim, kernel_size=1) for c in cfg.in_channels]
         )
 
         # 3x3 conv to refine each pyramid level after top-down sum
         self.refine = nn.ModuleList(
             [nn.Conv2d(cfg.lateral_dim, cfg.lateral_dim, kernel_size=3, padding=1)
-             for _ in in_channels]
+             for _ in cfg.in_channels]
         )
 
         # Fuse head (only used when concat)
         if cfg.fuse == "concat":
-            self.fuse_conv = nn.Conv2d(cfg.lateral_dim * len(in_channels),
+            self.fuse_conv = nn.Conv2d(cfg.lateral_dim * len(cfg.in_channels),
                                        cfg.lateral_dim, kernel_size=1)
         else:
             self.fuse_conv = None  # type: ignore[assignment]

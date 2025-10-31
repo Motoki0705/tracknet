@@ -58,13 +58,15 @@ class HeatmapModel(nn.Module):
                     local_files_only=bool(backbone_cfg.get("local_files_only", True)),
                 )
             )
-            self.fpn_cfg = FPNDecoderConfig(
-                lateral_dim=int(model_cfg.fpn.get("lateral_dim", 256)),
-                fuse=str(model_cfg.fpn.get("fuse", "sum")),
-                out_size=out_size,
+            self.decoder = FPNDecoder(
+                FPNDecoderConfig(
+                    in_channels=[int(c) for c in model_cfg.fpn.in_channels],
+                    lateral_dim=int(model_cfg.fpn.get("lateral_dim", 256)),
+                    fuse=str(model_cfg.fpn.get("fuse", "sum")),
+                    out_size=out_size,
+                )
             )
-            self.decoder: Optional[FPNDecoder] = None  # lazily initialized
-            self.head = HeatmapHead(self.fpn_cfg.lateral_dim)
+            self.head = HeatmapHead(int(model_cfg.fpn.get("lateral_dim", 256)))
         elif hasattr(model_cfg, "decoder"):
             self.variant = "vit_upsample"
             self.backbone = ViTBackbone(
@@ -110,12 +112,10 @@ class HeatmapModel(nn.Module):
             features = self.decoder(tokens)  # type: ignore[arg-type]
             return self.head(features)
 
-        feats = self.backbone(images)  # type: ignore[call-arg]
-        if self.decoder is None:
-            in_chs = [int(f.shape[1]) for f in feats]
-            self.decoder = FPNDecoder(in_chs, self.fpn_cfg)
-        pyramid = self.decoder(feats)  # type: ignore[arg-type]
-        return self.head(pyramid)
+        if self.variant == "convnext_fpn":
+            feats = self.backbone(images)  # type: ignore[call-arg]
+            pyramid = self.decoder(feats)  # type: ignore[arg-type]
+            return self.head(pyramid)
 
 
 def build_model(model_cfg: DictConfig) -> nn.Module:
