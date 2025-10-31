@@ -18,7 +18,7 @@ Usage:
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from pprint import pformat
 from typing import Any, Dict, Iterable, List, Optional, Tuple
@@ -59,6 +59,7 @@ class Trainer:
     """Trainer orchestrates data, model, loss, and optimization."""
 
     cfg: DictConfig
+    _precision_warning_emitted: bool = field(default=False, init=False, repr=False)
 
     def __post_init__(self) -> None:
         """Emit a configuration summary as soon as the trainer is constructed."""
@@ -83,21 +84,39 @@ class Trainer:
         """
 
         device_type = "cuda" if torch.cuda.is_available() else "cpu"
-        mode = str(self.cfg.training.get("precision", "auto")).lower()
-        if mode == "auto":
-            mode = "fp16" if bool(self.cfg.training.get("amp", False)) else "fp32"
+        requested = str(self.cfg.training.get("precision", "auto")).lower()
+        if requested not in {"auto", "fp32", "fp16", "bf16"}:
+            logging.getLogger(__name__).warning(
+                "Unknown precision '%s'; defaulting to fp32.", requested
+            )
+            requested = "fp32"
 
-        use_fp16 = mode == "fp16" and device_type == "cuda"
-        use_bf16 = mode == "bf16" and device_type in ("cuda", "cpu")
+        if requested == "auto":
+            requested = "fp16" if (device_type == "cuda" and bool(self.cfg.training.get("amp", False))) else "fp32"
+
+        fallback_reason: Optional[str] = None
+        if requested == "fp16" and device_type != "cuda":
+            fallback_reason = "FP16 precision requested on a non-CUDA device; falling back to fp32."
+            requested = "fp32"
+        elif requested == "bf16" and device_type != "cuda":
+            fallback_reason = "BF16 precision requested on a non-CUDA device; falling back to fp32."
+            requested = "fp32"
+
+        use_fp16 = requested == "fp16" and device_type == "cuda"
+        use_bf16 = requested == "bf16" and device_type == "cuda"
+
+        if fallback_reason and not self._precision_warning_emitted:
+            logging.getLogger(__name__).warning(fallback_reason)
+            self._precision_warning_emitted = True
 
         if use_fp16:
-            autocast_dtype = torch.float16
+            autocast_dtype: Optional[torch.dtype] = torch.float16
         elif use_bf16:
             autocast_dtype = torch.bfloat16
         else:
             autocast_dtype = None
 
-        return mode, device_type, autocast_dtype, use_fp16
+        return requested, device_type, autocast_dtype, use_fp16
 
     def _configuration_snapshot(self) -> Dict[str, Any]:
         """Build a structured summary of key configuration fields.
@@ -397,33 +416,33 @@ class Trainer:
                         loss = criterion(outputs, targets, masks)
                         vloss += float(loss.detach().cpu())
                         vnum += 1
-                if not saved_preview:
-                    base_dir = Path(logger.dir)
-                    overlay_dir = base_dir / "overlays" / f"epoch{epoch:03d}"
-                    image_dir = base_dir / "inputs" / f"epoch{epoch:03d}"
-                    overlay_dir.mkdir(parents=True, exist_ok=True)
-                    image_dir.mkdir(parents=True, exist_ok=True)
-                    batch_size = images.shape[0]
-                    sample_size = min(4, batch_size)
-                    indices = random.sample(range(batch_size), sample_size)
-                    denorm = bool(self.cfg.data.preprocess.get("normalize", True))
-                    for idx in indices:
-                        img_t = images[idx].detach().cpu()
-                        hm_t = outputs[idx].detach().cpu()
-                        save_image_from_tensor(
-                            img_t,
-                            image_dir / f"sample_{idx:02d}.png",
-                            denormalize=denorm,
-                        )
-                        save_overlay_from_tensor(
-                            img_t,
-                            hm_t,
-                            overlay_dir / f"sample_{idx:02d}.png",
-                            denormalize=denorm,
-                        )
-                    saved_preview = True
-                    if limit_val and vi >= limit_val:
-                        break
+                        if not saved_preview:
+                            base_dir = Path(logger.dir)
+                            overlay_dir = base_dir / "overlays" / f"epoch{epoch:03d}"
+                            image_dir = base_dir / "inputs" / f"epoch{epoch:03d}"
+                            overlay_dir.mkdir(parents=True, exist_ok=True)
+                            image_dir.mkdir(parents=True, exist_ok=True)
+                            batch_size = images.shape[0]
+                            sample_size = min(4, batch_size)
+                            indices = random.sample(range(batch_size), sample_size)
+                            denorm = bool(self.cfg.data.preprocess.get("normalize", True))
+                            for idx in indices:
+                                img_t = images[idx].detach().cpu()
+                                hm_t = outputs[idx].detach().cpu()
+                                save_image_from_tensor(
+                                    img_t,
+                                    image_dir / f"sample_{idx:02d}.png",
+                                    denormalize=denorm,
+                                )
+                                save_overlay_from_tensor(
+                                    img_t,
+                                    hm_t,
+                                    overlay_dir / f"sample_{idx:02d}.png",
+                                    denormalize=denorm,
+                                )
+                            saved_preview = True
+                        if limit_val and vi >= limit_val:
+                            break
                 val_loss = vloss / max(1, vnum)
 
             # Scheduler step per epoch
