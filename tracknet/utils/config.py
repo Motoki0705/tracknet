@@ -109,7 +109,7 @@ class BuildConfigArgs:
     """
 
     data_name: str = "tracknet"
-    model_name: str = "vit_heatmap"
+    model_name: str = "convnext_fpn_heatmap"
     training_name: str = "default"
     overrides: Optional[Iterable[str]] = None
     seed: Optional[int] = None
@@ -119,7 +119,7 @@ class BuildConfigArgs:
 
 def build_cfg(
     data_name: str = "tracknet",
-    model_name: str = "vit_heatmap",
+    model_name: str = "convnext_fpn_heatmap",
     training_name: str = "default",
     overrides: Optional[Iterable[str]] = None,
     seed: Optional[int] = None,
@@ -212,7 +212,7 @@ def add_config_cli_arguments(parser: argparse.ArgumentParser) -> argparse.Argume
 
     parser.add_argument("--data", dest="data_name", default="tracknet", type=str,
                         help="Data config name in configs/data (without .yaml)")
-    parser.add_argument("--model", dest="model_name", default="vit_heatmap", type=str,
+    parser.add_argument("--model", dest="model_name", default="convnext_fpn_heatmap", type=str,
                         help="Model config name in configs/model (without .yaml)")
     parser.add_argument("--training", dest="training_name", default="default", type=str,
                         help="Training config name in configs/training (without .yaml)")

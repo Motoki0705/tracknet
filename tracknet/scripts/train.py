@@ -1,9 +1,7 @@
-"""Training entrypoint for TrackNet.
+"""PyTorch Lightning-based training entrypoint for TrackNet.
 
 Builds a unified configuration (OmegaConf) from YAMLs and optional CLI
-overrides, then launches training. For Section 1 implementation, this script
-supports a dry-run mode that constructs and prints the configuration without
-performing any training side effects.
+overrides, then launches training using ``pytorch-lightning``.
 
 Usage examples:
     uv run python -m tracknet.scripts.train --dry-run
@@ -18,8 +16,14 @@ import sys
 from typing import List
 
 from omegaconf import OmegaConf
+import torch
+import pytorch_lightning as pl
+from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+from pytorch_lightning.loggers import CSVLogger
 
 from tracknet.utils.config import add_config_cli_arguments, build_cfg
+from tracknet.training.lightning_datamodule import TrackNetDataModule
+from tracknet.training.lightning_module import PLHeatmapModule
 
 
 def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
@@ -73,10 +77,67 @@ def main(argv: List[str] | None = None) -> int:
         print("[dry-run] Exiting before training loop.")
         return 0
 
-    # Launch training
-    from tracknet.training.trainer import Trainer
-    trainer = Trainer(cfg)
-    trainer.train()
+    # Launch training (Lightning)
+    pl.seed_everything(int(cfg.runtime.seed), workers=True)
+
+    # Data and model
+    datamodule = TrackNetDataModule(cfg)
+    lit_module = PLHeatmapModule(cfg)
+
+    # Logger (CSV to avoid extra deps; directory: <log_dir>/<run_id>)
+    csv_logger = CSVLogger(
+        save_dir=str(cfg.runtime.log_dir),
+        name=str(cfg.runtime.run_id),
+    )
+
+    # Callbacks (Lightning built-ins)
+    ckpt_cb = ModelCheckpoint(
+        dirpath=str(cfg.runtime.ckpt_dir),
+        filename=f"best_{cfg.runtime.run_id}",
+        monitor="val/loss",
+        mode="min",
+        save_top_k=1,
+        save_weights_only=True,
+    )
+    lrmon_cb = LearningRateMonitor(logging_interval="epoch")
+
+    callbacks = [ckpt_cb, lrmon_cb]
+    escfg = cfg.training.get("early_stopping", None)
+    if escfg:
+        callbacks.append(
+            EarlyStopping(
+                monitor=str(escfg.get("monitor", "val/loss")),
+                mode=str(escfg.get("mode", "min")),
+                patience=int(escfg.get("patience", 10)),
+                min_delta=float(escfg.get("min_delta", 0.0)),
+            )
+        )
+
+    # Precision mapping
+    def _map_precision() -> str:
+        req = str(cfg.training.get("precision", cfg.training.get("amp", False) and "fp16" or "fp32")).lower()
+        if req == "fp16" and torch.cuda.is_available():
+            return "16-mixed"
+        if req == "bf16" and torch.cuda.is_available():
+            return "bf16-mixed"
+        return "32-true"
+
+    # Trainer
+    trainer = pl.Trainer(
+        accelerator=("gpu" if torch.cuda.is_available() else "cpu"),
+        devices="auto",
+        precision=_map_precision(),
+        max_epochs=int(cfg.training.get("epochs", 1)),
+        gradient_clip_val=float(cfg.training.get("grad_clip", 0.0)),
+        limit_train_batches=int(cfg.training.get("limit_train_batches", 0)) or 1.0,
+        limit_val_batches=int(cfg.training.get("limit_val_batches", 0)) or 1.0,
+        logger=csv_logger,
+        callbacks=callbacks,
+        log_every_n_steps=50,
+        enable_progress_bar=True,
+    )
+
+    trainer.fit(lit_module, datamodule=datamodule)
     return 0
 
 
