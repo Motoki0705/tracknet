@@ -30,18 +30,25 @@
 - `configs/data/<name>.yaml`
   - `root: str` データルート
   - `split: { train_games: list[str], val_games: list[str] }`
-  - `preprocess: { resize: int|null, normalize: bool, flip_prob: float }`
+  - `preprocess: { resize: [int, int] | null, normalize: bool, flip_prob: float }`
+    - `resize` は `(width, height)` 順の2要素（未指定時は `null`）。
   - `sequence: { enabled: bool, length: int, stride: int }`
 - `configs/model/<name>.yaml`
   - `pretrained_model_name: str` HFモデル識別子
-  - `decoder: { channels: list[int], upsample: list[int] }`
+  - `backbone: {...}`（例: ViTなら `{freeze, device_map, local_files_only, patch_size}`／ConvNeXtなら `{freeze, return_stages, device_map, local_files_only}`）
+  - `decoder` or `fpn`:
+    - ViT系: `decoder.{channels, upsample, blocks_per_stage, norm, activation, use_depthwise, use_se, se_reduction, dropout}`
+    - ConvNeXt系: `fpn.{lateral_dim, fuse}`
   - `heatmap: { size: [int, int], sigma: float }`
 - `configs/training/<name>.yaml`
   - `seed: int`
-  - `batch_size: int`, `epochs: int`, `amp: bool`, `grad_clip: float`
-  - `optimizer: { name: str, lr: float, weight_decay: float }`
-  - `scheduler: { name: str, warmup_epochs: int }`
-  - `output_dir: str`, `log_dir: str`, `ckpt_dir: str`
+  - `batch_size: int`, `epochs: int`, `grad_clip: float`
+  - 精度指定: `precision: str`（`auto`/`fp32`/`fp16`/`bf16`）と後方互換用 `amp: bool`
+  - `optimizer: { name: str, lr: float, weight_decay: float, ... }`
+  - `scheduler: { name: str, warmup_epochs: int, ... }`
+  - 損失設定: `loss: { name: str, alpha: float, beta: float }`（任意。`name` は `mse` or `focal`）
+  - DataLoader調整: `data_loader: { num_workers, pin_memory, persistent_workers, prefetch_factor, drop_last }`
+  - 出力関連: `output_dir: str`, `log_dir: str`, `ckpt_dir: str`（未指定時は `outputs/` 配下を自動解決）
 
 ## 生成されるランタイム情報（cfg.runtime）
 - `seed: int` 最終決定シード（優先度: CLI `--seed` > `training.seed` > 既定42）

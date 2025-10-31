@@ -4,19 +4,21 @@
 
 ## 機能概要
 - データ: `TrackNetFrameDataset` / `TrackNetSequenceDataset` を構築し、`collate_frames`/`collate_sequences` でヒートマップ・マスクを生成。
-- モデル: コンフィグに応じて以下を切替。
+- モデル: `tracknet.models.build_model(cfg.model)` を用いて組み立て、コンフィグに応じて以下を切替。
   - ViT + UpsamplingDecoder + HeatmapHead
   - ConvNeXt + FPNDecoder + HeatmapHead
-- 損失: `build_heatmap_loss`（既定: MSE）
+- 損失: `build_heatmap_loss`（`training.loss` で `mse`/`focal` を切替、既定: MSE）
 - 最適化: `AdamW`（既定）、CosineAnnealingLR（既定）
-- ループ: AMP（任意）、勾配クリップ（任意）、検証、ベストチェックポイント保存
+- ループ: 精度選択（`training.precision` または legacy `amp`）、勾配クリップ、検証、ベストチェックポイント保存
 
 ## コンフィグの主な項目
 - `data.preprocess.{resize, normalize, flip_prob}`
 - `data.sequence.{enabled, length, stride}`
 - `model.heatmap.{size=[W,H], sigma}`
-- `model.decoder.*` or `model.fpn.*`（選択的）
-- `training.{batch_size, epochs, amp, grad_clip}`
+- `model.decoder.*`（ViT: `channels`, `upsample`, `blocks_per_stage`, `norm`, `activation`, `use_depthwise`, `use_se`, `se_reduction`, `dropout`）
+- `model.fpn.*`（ConvNeXt: `lateral_dim`, `fuse`）
+- `training.{batch_size, epochs, precision, amp, grad_clip}`
+- 損失設定: `training.loss.{name, alpha, beta}`（任意）
 - `training.optimizer.{name, lr, weight_decay}`
 - `training.scheduler.{name, warmup_epochs}`（一部未使用）
 - 任意: `training.limit_train_batches`, `training.limit_val_batches`（スモーク用途）

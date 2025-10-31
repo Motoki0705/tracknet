@@ -3,9 +3,10 @@
 本ドキュメントは、`tracknet/datasets` 実装の要点と入出力仕様をまとめる。
 
 ## 基本設計
-- サンプルは「画像テンソル（C,H,W）」「ボール座標（x,y：ピクセル）」「可視性（0/1）」を返す。
+- サンプルは「画像テンソル（C,H,W）」「ボール座標（x,y：ピクセル）」「可視性（int）」を返す。
+  - 可視性は `0` が非可視、`>0` は可視として扱う（`2`/`3` もマスク上は可視）。
 - ヒートマップ生成は `collate` 段で行う（柔軟な解像度に対応するため）。
-- 前処理は `PreprocessConfig` で制御（`resize`/`normalize`/`flip_prob`）。
+- 前処理は `PreprocessConfig` で制御（`resize`/`normalize`/`flip_prob`）。`resize` は `(width, height)` のタプル。 
 
 ## 主要モジュール
 - `tracknet/datasets/base/image_dataset.py`
@@ -27,14 +28,14 @@
 
 ## 返却フィールド
 - フレーム：
-  - `image` (FloatTensor `[C,H,W]`)、`coord` (tuple `(x,y)`)、`visibility` (int 0/1)
+  - `image` (FloatTensor `[C,H,W]`)、`coord` (tuple `(x,y)`)、`visibility` (int)
   - `meta.size = (W,H)`（オリジナル画像サイズ）
 - 時系列：
   - `images` (FloatTensor `[T,C,H,W]`)、`coords` (list of `(x,y)`)、`visibility` (list of int)
   - `meta.sizes = [(W,H)] * T`
 
 ## ヒートマップ生成
-- `collate_*` に `heatmap_size=(W,H)` と `sigma` を渡す。
+- `collate_*` に `heatmap_size=(W,H)` と `sigma` を渡す（内部で `[H,W]` 形状のヒートマップを生成）。
 - 画像座標 `(x,y)` を `heatmap_size` にスケールし、2Dガウスを生成。
 - `visibility==0` の場合、ヒートマップはゼロ、マスクもゼロ（ロスから除外）。
 

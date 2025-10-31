@@ -7,7 +7,7 @@
 ```
 uv run python -m tracknet.scripts.train \
   --data tracknet --model vit_heatmap --training default \
-  training.epochs=1 training.batch_size=2 \ 
+  training.epochs=1 training.batch_size=2 \
   training.limit_train_batches=2 training.limit_val_batches=2
 ```
 
@@ -32,5 +32,5 @@ uv run python -m tracknet.scripts.predict \
   --image data/tracknet/game1/Clip1/0000.jpg \
   --checkpoint outputs/checkpoints/best_*.pt
 ```
-- 出力: `outputs/predictions/<stem>_heatmap.png`, `<stem>_overlay.png`
+- 出力: `cfg.runtime.output_root/predictions/<stem>_heatmap.png`, `<stem>_overlay.png`
 
