@@ -27,7 +27,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Iterable, Optional
 
-import torch
 from omegaconf import DictConfig, OmegaConf
 
 
@@ -35,6 +34,8 @@ from omegaconf import DictConfig, OmegaConf
 # Internal utilities
 # ------------------------------
 
+# Simple cache for YAML configs to avoid repeated file I/O
+_yaml_cache: dict[tuple[str, str], DictConfig] = {}
 
 def _project_root() -> Path:
     """Return the project root directory path.
@@ -58,7 +59,6 @@ def _configs_dir() -> Path:
 
     return _project_root() / "configs"
 
-
 def _load_yaml(category: str, name: str) -> DictConfig:
     """Load a YAML config from `configs/<category>/<name>.yaml`.
 
@@ -73,10 +73,17 @@ def _load_yaml(category: str, name: str) -> DictConfig:
         FileNotFoundError: If the expected YAML file does not exist.
     """
 
+    cache_key = (category, name)
+    if cache_key in _yaml_cache:
+        return _yaml_cache[cache_key]
+    
     path = _configs_dir() / category / f"{name}.yaml"
     if not path.exists():
         raise FileNotFoundError(f"Config not found: {path}")
-    return OmegaConf.load(path)
+    
+    config = OmegaConf.load(path)
+    _yaml_cache[cache_key] = config
+    return config
 
 
 def _seed_all(seed: int) -> None:
@@ -88,9 +95,15 @@ def _seed_all(seed: int) -> None:
 
     random.seed(seed)
     os.environ["PYTHONHASHSEED"] = str(seed)
-    torch.manual_seed(seed)
-    if torch.cuda.is_available():  # pragma: no cover - depends on environment
-        torch.cuda.manual_seed_all(seed)
+    
+    # Delay torch import until needed
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():  # pragma: no cover - depends on environment
+            torch.cuda.manual_seed_all(seed)
+    except ImportError:
+        pass  # torch not available, skip torch seeding
 
 
 @dataclass

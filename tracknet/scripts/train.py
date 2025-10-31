@@ -16,15 +16,35 @@ import sys
 from typing import List
 
 from omegaconf import OmegaConf
-import torch
-import pytorch_lightning as pl
-from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
-from pytorch_lightning.loggers import CSVLogger
 
-from tracknet.utils.config import add_config_cli_arguments, build_cfg
-from tracknet.training.lightning_datamodule import TrackNetDataModule
-from tracknet.training.lightning_module import PLHeatmapModule
+# Heavy imports are delayed until needed
+def _import_lightning():
+    """Delay import of lightning components to speed up startup."""
+    global torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger
+    import torch
+    import pytorch_lightning as pl
+    from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+    from pytorch_lightning.loggers import CSVLogger
+    return torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger
 
+def _import_tracknet():
+    """Delay import of basic tracknet components."""
+    global build_cfg
+    from tracknet.utils.config import add_config_cli_arguments, build_cfg
+    return build_cfg
+
+def _import_lightning_modules():
+    """Delay import of lightning components."""
+    global TrackNetDataModule, PLHeatmapModule
+    from tracknet.training.lightning_datamodule import TrackNetDataModule
+    from tracknet.training.lightning_module import PLHeatmapModule
+    return TrackNetDataModule, PLHeatmapModule
+
+
+def _add_config_cli_arguments(parser):
+    """Delay import of config utilities."""
+    from tracknet.utils.config import add_config_cli_arguments
+    add_config_cli_arguments(parser)
 
 def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
     """Parse CLI arguments, keeping unknown args as overrides.
@@ -40,7 +60,7 @@ def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
     """
 
     parser = argparse.ArgumentParser(description="TrackNet training entrypoint")
-    add_config_cli_arguments(parser)
+    _add_config_cli_arguments(parser)
     known, unknown = parser.parse_known_args(argv)
     return known, unknown
 
@@ -55,10 +75,23 @@ def main(argv: List[str] | None = None) -> int:
         Process exit code. ``0`` on success.
     """
 
+    import os
+    import sys
+    
+    # Optimize Python startup
+    sys.dont_write_bytecode = True
+    
+    # Optimize PyTorch startup
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
+    os.environ["PYTHONHASHSEED"] = "0"
+    
     if argv is None:
         argv = sys.argv[1:]
 
     args, overrides = parse_args(argv)
+    build_cfg = _import_tracknet()
+    
     cfg = build_cfg(
         data_name=args.data_name,
         model_name=args.model_name,
@@ -77,6 +110,10 @@ def main(argv: List[str] | None = None) -> int:
         print("[dry-run] Exiting before training loop.")
         return 0
 
+    # Import Lightning modules only when needed
+    torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger = _import_lightning()
+    TrackNetDataModule, PLHeatmapModule = _import_lightning_modules()
+    
     # Launch training (Lightning)
     pl.seed_everything(int(cfg.runtime.seed), workers=True)
 
