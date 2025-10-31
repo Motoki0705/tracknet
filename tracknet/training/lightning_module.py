@@ -91,7 +91,7 @@ class PLHeatmapModule(pl.LightningModule):
         # Save small preview for the first batch of each epoch
         if batch_idx == 0 and self.current_epoch != self._preview_saved_epoch:
             try:
-                self._save_validation_preview(images, outputs)
+                self._save_validation_preview(images, outputs, targets)
                 self._preview_saved_epoch = self.current_epoch
             except Exception:
                 # Best-effort; previews are not critical to training
@@ -154,35 +154,42 @@ class PLHeatmapModule(pl.LightningModule):
         return optimizer
 
     # -------------------------- Utilities --------------------------
-    def _save_validation_preview(self, images: torch.Tensor, outputs: torch.Tensor) -> None:
-        """Save a small set of input/overlay previews under the log directory.
+    def _save_validation_preview(self, images: torch.Tensor, outputs: torch.Tensor, targets: torch.Tensor) -> None:
+        """Save a small set of prediction and target overlay previews under the log directory.
 
         Args:
             images: Batch input images (``[B, 3, H, W]``).
             outputs: Predicted heatmaps (``[B, 1, H, W]``).
+            targets: Target heatmaps (``[B, 1, H, W]``).
         """
 
         base_dir = Path(self.cfg.runtime.log_dir) / self.cfg.runtime.run_id
-        overlay_dir = base_dir / "overlays" / f"epoch{self.current_epoch:03d}"
-        image_dir = base_dir / "inputs" / f"epoch{self.current_epoch:03d}"
-        overlay_dir.mkdir(parents=True, exist_ok=True)
-        image_dir.mkdir(parents=True, exist_ok=True)
+        pred_overlay_dir = base_dir / "overlays_pred" / f"epoch{self.current_epoch:03d}"
+        target_overlay_dir = base_dir / "overlays_target" / f"epoch{self.current_epoch:03d}"
+        pred_overlay_dir.mkdir(parents=True, exist_ok=True)
+        target_overlay_dir.mkdir(parents=True, exist_ok=True)
 
         bsz = images.shape[0]
         sample = min(4, bsz)
         denorm = bool(self.cfg.data.preprocess.get("normalize", True))
         for idx in range(sample):
             img_t = images[idx].detach().cpu()
-            hm_t = outputs[idx].detach().cpu()
-            save_image_from_tensor(
-                img_t,
-                image_dir / f"sample_{idx:02d}.png",
-                denormalize=denorm,
-            )
+            pred_hm_t = outputs[idx].detach().cpu()
+            target_hm_t = targets[idx].detach().cpu()
+            
+            # Save prediction overlay
             save_overlay_from_tensor(
                 img_t,
-                hm_t,
-                overlay_dir / f"sample_{idx:02d}.png",
+                pred_hm_t,
+                pred_overlay_dir / f"sample_{idx:02d}.png",
+                denormalize=denorm,
+            )
+            
+            # Save target overlay
+            save_overlay_from_tensor(
+                img_t,
+                target_hm_t,
+                target_overlay_dir / f"sample_{idx:02d}.png",
                 denormalize=denorm,
             )
 
