@@ -1,33 +1,15 @@
-"""Training package for TrackNet.
+# tracknet/training/__init__.py
+"""
+Training package for TrackNet.
 
 Includes losses, metrics, and callbacks used by the trainer.
+Lazily exposes symbols at package top-level to reduce import time.
 """
 
-# Lazy imports to improve startup time
-def _import_losses():
-    from .losses.heatmap_loss import (
-        HeatmapMSELoss,
-        HeatmapFocalLoss,
-        HeatmapLossConfig,
-        build_heatmap_loss,
-    )
-    return HeatmapMSELoss, HeatmapFocalLoss, HeatmapLossConfig, build_heatmap_loss
-
-def _import_metrics():
-    from .metrics import (
-        heatmap_argmax_coords,
-        heatmap_soft_argmax_coords,
-        l2_error,
-        pck_at_r,
-        visible_from_mask,
-    )
-    return heatmap_argmax_coords, heatmap_soft_argmax_coords, l2_error, pck_at_r, visible_from_mask
-
-def _import_callbacks():
-    from .callbacks.early_stopping import EarlyStopping, EarlyStoppingConfig
-    from .callbacks.checkpoint import ModelCheckpoint, CheckpointConfig
-    from .callbacks.lr_scheduler import LRSchedulerCallback, LRSchedulerConfig
-    return EarlyStopping, EarlyStoppingConfig, ModelCheckpoint, CheckpointConfig, LRSchedulerCallback, LRSchedulerConfig
+from __future__ import annotations
+from typing import TYPE_CHECKING, Any, Dict
+import importlib
+import threading
 
 __all__ = [
     # losses
@@ -50,3 +32,74 @@ __all__ = [
     "LRSchedulerConfig",
 ]
 
+# name -> "relative.module.path:attribute" mapping
+_lazy_specs: Dict[str, str] = {
+    # losses
+    "HeatmapMSELoss":       ".losses.heatmap_loss:HeatmapMSELoss",
+    "HeatmapFocalLoss":     ".losses.heatmap_loss:HeatmapFocalLoss",
+    "HeatmapLossConfig":    ".losses.heatmap_loss:HeatmapLossConfig",
+    "build_heatmap_loss":   ".losses.heatmap_loss:build_heatmap_loss",
+
+    # metrics
+    "heatmap_argmax_coords":     ".metrics:heatmap_argmax_coords",
+    "heatmap_soft_argmax_coords":".metrics:heatmap_soft_argmax_coords",
+    "l2_error":                  ".metrics:l2_error",
+    "pck_at_r":                  ".metrics:pck_at_r",
+    "visible_from_mask":         ".metrics:visible_from_mask",
+
+    # callbacks
+    "EarlyStopping":        ".callbacks.early_stopping:EarlyStopping",
+    "EarlyStoppingConfig":  ".callbacks.early_stopping:EarlyStoppingConfig",
+    "ModelCheckpoint":      ".callbacks.checkpoint:ModelCheckpoint",
+    "CheckpointConfig":     ".callbacks.checkpoint:CheckpointConfig",
+    "LRSchedulerCallback":  ".callbacks.lr_scheduler:LRSchedulerCallback",
+    "LRSchedulerConfig":    ".callbacks.lr_scheduler:LRSchedulerConfig",
+}
+
+_lazy_cache: Dict[str, Any] = {}
+_lazy_lock = threading.RLock()
+
+def __getattr__(name: str) -> Any:
+    # Return cached if already resolved
+    obj = _lazy_cache.get(name)
+    if obj is not None:
+        return obj
+
+    spec = _lazy_specs.get(name)
+    if spec is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    mod_path, attr = spec.split(":")
+    with _lazy_lock:
+        # Double-check under lock
+        obj = _lazy_cache.get(name)
+        if obj is not None:
+            return obj
+        mod = importlib.import_module(mod_path, __name__)
+        obj = getattr(mod, attr)
+        _lazy_cache[name] = obj
+        globals()[name] = obj  # Cache into module globals for subsequent direct access
+        return obj
+
+def __dir__():
+    # Better REPL/IDE experience
+    return sorted(set(list(globals().keys()) + __all__))
+
+# Static type checkers / IDEs see the symbols without importing at runtime
+if TYPE_CHECKING:
+    from .losses.heatmap_loss import (
+        HeatmapMSELoss,
+        HeatmapFocalLoss,
+        HeatmapLossConfig,
+        build_heatmap_loss,
+    )
+    from .metrics import (
+        heatmap_argmax_coords,
+        heatmap_soft_argmax_coords,
+        l2_error,
+        pck_at_r,
+        visible_from_mask,
+    )
+    from .callbacks.early_stopping import EarlyStopping, EarlyStoppingConfig
+    from .callbacks.checkpoint import ModelCheckpoint, CheckpointConfig
+    from .callbacks.lr_scheduler import LRSchedulerCallback, LRSchedulerConfig
