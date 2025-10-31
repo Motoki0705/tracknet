@@ -26,6 +26,11 @@
 - 学習率ウォームアップ:
   - `training.scheduler.warmup_epochs: int` と `training.scheduler.warmup_start_factor: float` を追加。
   - `LinearLR`（ウォームアップ）→`CosineAnnealingLR` の逐次スケジューラを採用します。
+- **自動マイクロバッチング**:
+  - OOM（Out of Memory）を検知すると自動でバッチを分割し、メモリ不足を回避します。
+  - 通常時は分割なし（元のバッチサイズと等価）で高速に実行されます。
+  - 一度成功したマイクロバッチサイズは記憶され、以後も使用されます。
+  - バックボーン解凍時に再探索され、最適なサイズが自動で見つかります。
 
 ## 精度（precision）
 - `training.precision` ∈ {`fp32`, `fp16`, `bf16`} を Lightning の precision にマッピング
@@ -41,6 +46,7 @@
 - `model.decoder.*`（ViT: `channels`, `upsample`, `blocks_per_stage`, `norm`, `activation`, `use_depthwise`, `use_se`, `se_reduction`, `dropout`）
 - `model.fpn.*`（ConvNeXt: `lateral_dim`, `fuse`）
 - `training.{batch_size, epochs, precision, amp, grad_clip}`
+- **マイクロバッチング設定**: `training.{adaptive_micro_batch, min_micro_batch_size, mb_backoff_factor, oom_retries, micro_batch_size, grad_clip_norm}`
 - 損失設定: `training.loss.{name, alpha, beta}`（任意）
 - `training.optimizer.{name, lr, weight_decay}`
 - `training.scheduler.{name}`（Cosineが既定）

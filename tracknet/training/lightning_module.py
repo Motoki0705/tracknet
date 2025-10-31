@@ -6,6 +6,8 @@ while delegating core architecture and datasets to existing project modules.
 
 from __future__ import annotations
 
+import contextlib
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Optional
@@ -64,37 +66,136 @@ class PLHeatmapModule(pl.LightningModule):
             self._set_backbone_requires_grad(False)
             self._backbone_frozen = True
 
-        # Preview saving state
+        # === NEW: 自動マイクロバッチ設定 ===
+        tcfg = cfg.training
+        self._auto_mb: bool = bool(tcfg.get("adaptive_micro_batch", True))
+        self._min_mb: int = int(tcfg.get("min_micro_batch_size", 1))
+        self._backoff: int = int(tcfg.get("mb_backoff_factor", 2))  # 2で半減
+        self._oom_retries: int = int(tcfg.get("oom_retries", 3))
+        self._fixed_mb: int = int(tcfg.get("micro_batch_size", 0))  # >0なら固定
+        self._clip_norm: float = float(tcfg.get("grad_clip_norm", 0.0))
+
+        # ランタイムに決まる"現在のマイクロバッチサイズ"（OOM後に確定）
+        self._runtime_mb: Optional[int] = None
+
+        # 以降は手動最適化で統一（通常時は1チャンク=元バッチと同義）
+        self.automatic_optimization = False
         self._preview_saved_epoch: int = -1
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         return self.model(images)
 
-    # -------------------------- Training / Validation --------------------------
+    # -------------------------- Training --------------------------
     def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore[override]
-        images = batch["images"]
-        targets = batch["heatmaps"]
-        masks = batch["masks"]
-        outputs = self(images)
-        loss = self.criterion(outputs, targets, masks)
-        self.log("train/loss", loss, on_step=True, on_epoch=True, prog_bar=True, batch_size=images.size(0))
-        return loss
+        opt = self.optimizers()
+        if isinstance(opt, (list, tuple)):
+            opt = opt[0]
+        opt.zero_grad(set_to_none=True)
 
+        images, targets, masks = batch["images"], batch["heatmaps"], batch["masks"]
+        B = images.size(0)
+
+        # 1) 固定マイクロバッチ or 自動探索済みならそれを使う
+        if self._fixed_mb > 0:
+            mb = min(self._fixed_mb, B)
+            loss = self._run_micro_batches(opt, images, targets, masks, mb)
+            return loss
+
+        if self._auto_mb and self._runtime_mb is not None:
+            mb = min(self._runtime_mb, B)
+            loss = self._run_micro_batches(opt, images, targets, masks, mb)
+            return loss
+
+        # 2) まずは"分割なし"（mb=B）で試す → OOMなら自動で縮めて再試行
+        try:
+            loss = self._run_micro_batches(opt, images, targets, masks, B)  # 等価に1回更新
+            if self._auto_mb:
+                self._runtime_mb = B  # 余裕があることを記録
+            return loss
+        except RuntimeError as e:
+            if not self._auto_mb or "out of memory" not in str(e).lower():
+                raise
+            self._handle_oom(opt)
+
+        # 3) バックオフしながら再試行（B, B/2, B/4, ...）
+        mb = max(self._min_mb, B // self._backoff)
+        retries = self._oom_retries
+        while True:
+            try:
+                loss = self._run_micro_batches(opt, images, targets, masks, mb)
+                self._runtime_mb = mb  # 成功サイズを記録（以後も使用）
+                return loss
+            except RuntimeError as e:
+                if "out of memory" not in str(e).lower() or retries <= 0 or mb <= self._min_mb:
+                    raise
+                self._handle_oom(opt)
+                mb = max(self._min_mb, mb // self._backoff)
+                retries -= 1
+
+    # マイクロバッチで forward/backward を回し、1回だけ step
+    def _run_micro_batches(self, opt, images, targets, masks, mb: int) -> torch.Tensor:
+        B = images.size(0)
+        num_micro = math.ceil(B / mb)
+        total_loss = images.new_tensor(0.0)
+
+        # AMP 互換の autocast（PL 2.x：precision plugin が提供）
+        cm = getattr(self, "autocast_context_manager", None)
+        cm = cm() if callable(cm) else contextlib.nullcontext()
+
+        for i in range(0, B, mb):
+            xb = images[i:i+mb]
+            yb = targets[i:i+mb]
+            mbb = masks[i:i+mb]
+            with cm:
+                out = self(xb)
+                loss_mb = self.criterion(out, yb, mbb) / num_micro
+                self.manual_backward(loss_mb)  # 勾配だけ貯める
+                total_loss += loss_mb.detach()
+
+        if self._clip_norm and self._clip_norm > 0:
+            self.clip_gradients(opt, gradient_clip_val=self._clip_norm, gradient_clip_algorithm="norm")
+
+        opt.step()
+        self.log("train/loss", total_loss, on_step=True, on_epoch=True,
+                 prog_bar=True, batch_size=B)
+        return total_loss
+
+    def _handle_oom(self, opt) -> None:
+        # OOM後は一度勾配を解放してキャッシュを掃除
+        if opt is not None:
+            opt.zero_grad(set_to_none=True)
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+
+    # -------------------------- Validation（必要なら同様に自動分割） --------------------------
     def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Optional[torch.Tensor]:  # type: ignore[override]
-        images = batch["images"]
-        targets = batch["heatmaps"]
-        masks = batch["masks"]
-        outputs = self(images)
-        loss = self.criterion(outputs, targets, masks)
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=images.size(0))
+        images, targets, masks = batch["images"], batch["heatmaps"], batch["masks"]
+        B = images.size(0)
 
-        # Save small preview for the first batch of each epoch
+        # まずは一括で試す → OOMなら分割
+        try:
+            outputs = self(images)
+            loss = self.criterion(outputs, targets, masks)
+        except RuntimeError as e:
+            if "out of memory" not in str(e).lower():
+                raise
+            self._handle_oom(opt=None)
+            mb = max(self._min_mb, (self._runtime_mb or B) // self._backoff)
+            total = images.new_tensor(0.0)
+            for i in range(0, B, mb):
+                out = self(images[i:i+mb])
+                total += self.criterion(out, targets[i:i+mb], masks[i:i+mb]).detach()
+            loss = total / math.ceil(B / mb)
+
+        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=B)
+
         if batch_idx == 0 and self.current_epoch != self._preview_saved_epoch:
             try:
-                self._save_validation_preview(images, outputs, targets)
+                out_prev = outputs if "outputs" in locals() else self(images[:4])
+                self._save_validation_preview(images[:4], out_prev[:4], targets[:4])
                 self._preview_saved_epoch = self.current_epoch
             except Exception:
-                # Best-effort; previews are not critical to training
                 pass
         return loss
 
@@ -193,7 +294,7 @@ class PLHeatmapModule(pl.LightningModule):
                 denormalize=denorm,
             )
 
-    # -------------------------- Epoch hooks --------------------------
+    # -------------------------- Epoch hooks（解凍で再探索） --------------------------
     def on_train_epoch_start(self) -> None:  # type: ignore[override]
         """Handle scheduled backbone (un)freezing at epoch boundaries.
 
@@ -218,6 +319,20 @@ class PLHeatmapModule(pl.LightningModule):
                 self._set_backbone_requires_grad(True)
                 self._backbone_frozen = False
                 self.print(f"[Backbone] Unfrozen at epoch {self.current_epoch}")
+                # NEW: 解凍タイミングで"安全な"マイクロバッチサイズを再探索させる
+                if self._auto_mb:
+                    self._runtime_mb = None  # いったん忘れてBから再挑戦
+
+    def on_train_epoch_end(self) -> None:  # type: ignore[override]
+        # scheduler を手動で進める（手動最適化のため）
+        scheds = self.lr_schedulers()
+        if scheds is None:
+            return
+        if isinstance(scheds, (list, tuple)):
+            for s in scheds:
+                s.step()
+        else:
+            scheds.step()
 
     def _set_backbone_requires_grad(self, flag: bool) -> None:
         try:

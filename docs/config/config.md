@@ -45,6 +45,7 @@
   - `seed: int`
   - `batch_size: int`, `epochs: int`, `grad_clip: float`
   - 精度指定: `precision: str`（`auto`/`fp32`/`fp16`/`bf16`）と後方互換用 `amp: bool`
+  - **マイクロバッチング**: `adaptive_micro_batch: bool`, `min_micro_batch_size: int`, `mb_backoff_factor: int`, `oom_retries: int`, `micro_batch_size: int`, `grad_clip_norm: float`
   - `optimizer: { name: str, lr: float, weight_decay: float, ... }`
   - `scheduler: { name: str, warmup_epochs: int, ... }`
   - 損失設定: `loss: { name: str, alpha: float, beta: float }`（任意。`name` は `mse` or `focal`）
