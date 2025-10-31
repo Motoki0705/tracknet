@@ -1,4 +1,5 @@
 # ConvNeXt backbone + FPN decoder + heatmap head
+model_name: "convnext_fpn_heatmap"
 pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
 
 backbone:

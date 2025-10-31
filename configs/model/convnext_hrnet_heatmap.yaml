@@ -1,0 +1,24 @@
+# ConvNeXt backbone + HRNet decoder + heatmap head
+model_name: "convnext_hrnet_heatmap"
+pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
+
+backbone:
+  freeze: true
+  return_stages: [1, 2, 3, 4]
+  device_map: auto
+  local_files_only: true
+
+hrnet:
+  # Input channels from ConvNeXt stages [C2, C3, C4, C5]
+  in_channels: [128, 256, 512, 1024]
+  # Channel widths for each resolution branch (high -> low)
+  widths: [64, 128, 256, 512]
+  # Number of exchange units to apply
+  num_units: 2
+  # Output channels (optional, defaults to widths[0])
+  out_channels: 256
+
+heatmap:
+  # Target heatmap size [W, H]
+  size: [256, 144]
+  sigma: 2.0
