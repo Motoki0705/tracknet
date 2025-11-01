@@ -165,7 +165,6 @@ def main(argv: List[str] | None = None) -> int:
         devices="auto",
         precision=_map_precision(),
         max_epochs=int(cfg.training.get("epochs", 1)),
-        gradient_clip_val=float(cfg.training.get("grad_clip", 0.0)) if float(cfg.training.get("grad_clip", 0.0)) > 0 else None,
         limit_train_batches=int(cfg.training.get("limit_train_batches", 0)) or 1.0,
         limit_val_batches=int(cfg.training.get("limit_val_batches", 0)) or 1.0,
         logger=csv_logger,
