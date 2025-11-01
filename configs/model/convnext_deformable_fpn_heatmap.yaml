@@ -1,0 +1,26 @@
+# ConvNeXt backbone + Deformable DETR encoder + FPN decoder + heatmap head
+model_name: "convnext_deformable_fpn_heatmap"
+pretrained_model_name: facebook/dinov3-convnext-base-pretrain-lvd1689m
+
+backbone:
+  freeze: true
+  return_stages: [1, 2, 3, 4]
+  device_map: auto
+  local_files_only: true
+
+deformable_encoder:
+  # Transformer configuration
+  d_model: 256
+  nhead: 8
+  num_encoder_layers: 3
+  num_feature_levels: 4
+  n_points: 4
+  
+  # FPN configuration
+  lateral_dim: 256
+  fuse: sum      # 'sum' or 'concat'
+
+heatmap:
+  # Target heatmap size [W, H]
+  size: [256, 144]
+  sigma: 2.0

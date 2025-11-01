@@ -22,6 +22,7 @@ from tracknet.models.backbones.vit_backbone import ViTBackbone, ViTBackboneConfi
 from tracknet.models.decoders.fpn_decoder import FPNDecoderTorchvision, FPNDecoderConfig
 from tracknet.models.decoders.upsampling_decoder import UpsamplingDecoder
 from tracknet.models.decoders.hrnet_decoder import HRDecoder, HRDecoderConfig
+from tracknet.models.decoders.deformable_decoder import DeformableFPNDecoder, DeformableDecoderConfig
 from tracknet.models.heads.heatmap_head import HeatmapHead
 
 
@@ -69,6 +70,38 @@ class HeatmapModel(nn.Module):
                 )
             )
             self.head = HeatmapHead(int(model_cfg.fpn.get("lateral_dim", 256)))
+        elif model_name == "convnext_deformable_fpn_heatmap":
+            self.variant = "convnext_deformable_fpn"
+            self.backbone = ConvNeXtBackbone(
+                ConvNeXtBackboneConfig(
+                    pretrained_model_name=str(
+                        model_cfg.get(
+                            "pretrained_model_name",
+                            "facebook/dinov3-convnext-base-pretrain-lvd1689m",
+                        )
+                    ),
+                    return_stages=tuple(
+                        int(s) for s in backbone_cfg.get("return_stages", (1, 2, 3, 4))
+                    ),
+                    device_map=str(backbone_cfg.get("device_map", "auto"))
+                    if backbone_cfg.get("device_map", "auto") is not None
+                    else None,
+                    local_files_only=bool(backbone_cfg.get("local_files_only", True)),
+                )
+            )
+            self.decoder = DeformableFPNDecoder(
+                DeformableDecoderConfig(
+                    in_channels=[int(c) for c in model_cfg.deformable_encoder.get("in_channels", [128, 256, 512, 1024])],
+                    d_model=int(model_cfg.deformable_encoder.get("d_model", 256)),
+                    nhead=int(model_cfg.deformable_encoder.get("nhead", 8)),
+                    num_encoder_layers=int(model_cfg.deformable_encoder.get("num_encoder_layers", 3)),
+                    num_feature_levels=int(model_cfg.deformable_encoder.get("num_feature_levels", 4)),
+                    n_points=int(model_cfg.deformable_encoder.get("n_points", 4)),
+                    lateral_dim=int(model_cfg.deformable_encoder.get("lateral_dim", 256)),
+                    out_size=out_size,
+                )
+            )
+            self.head = HeatmapHead(int(model_cfg.deformable_encoder.get("lateral_dim", 256)))
         elif model_name == "vit_heatmap":
             self.variant = "vit_upsample"
             self.backbone = ViTBackbone(
@@ -130,7 +163,7 @@ class HeatmapModel(nn.Module):
             )
             self.head = HeatmapHead(int(model_cfg.hrnet.get("out_channels", model_cfg.hrnet.widths[0])))
         else:
-            raise ValueError(f"Unknown model_name: {model_name}. Supported: convnext_fpn_heatmap, vit_heatmap, convnext_hrnet_heatmap")
+            raise ValueError(f"Unknown model_name: {model_name}. Supported: convnext_fpn_heatmap, convnext_deformable_fpn_heatmap, vit_heatmap, convnext_hrnet_heatmap")
 
         if self.freeze_backbone:
             for param in self.backbone.parameters():
@@ -146,6 +179,11 @@ class HeatmapModel(nn.Module):
             feats = self.backbone(images)  # type: ignore[call-arg]
             pyramid = self.decoder(feats)  # type: ignore[arg-type]
             return self.head(pyramid)
+        
+        if self.variant == "convnext_deformable_fpn":
+            feats = self.backbone(images)  # type: ignore[call-arg]
+            deformable_features = self.decoder(feats)  # type: ignore[arg-type]
+            return self.head(deformable_features)
         
         if self.variant == "convnext_hrnet":
             feats = self.backbone(images)  # type: ignore[call-arg]
