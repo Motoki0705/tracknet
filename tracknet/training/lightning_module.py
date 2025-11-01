@@ -19,6 +19,7 @@ from omegaconf import DictConfig
 from tracknet.models import build_model
 from tracknet.training import HeatmapLossConfig, build_heatmap_loss
 from tracknet.utils.logging import save_image_from_tensor, save_overlay_from_tensor
+from tracknet.utils.quantization import get_memory_usage, clear_gpu_cache
 
 
 @dataclass
@@ -42,7 +43,7 @@ class PLHeatmapModule(pl.LightningModule):
         super().__init__()
         self.save_hyperparameters({"run_id": str(cfg.runtime.run_id)})
         self.cfg = cfg
-        self.model = build_model(cfg.model)
+        self.model = build_model(cfg.model, cfg.training)
 
         # Loss
         tcfg = cfg.training
@@ -81,6 +82,16 @@ class PLHeatmapModule(pl.LightningModule):
         # 以降は手動最適化で統一（通常時は1チャンク=元バッチと同義）
         self.automatic_optimization = False
         self._preview_saved_epoch: int = -1
+
+        # メモリ最適化設定
+        mem_cfg = cfg.training.get("memory_optimization", {})
+        self._gradient_checkpointing = bool(mem_cfg.get("gradient_checkpointing", False))
+        self._use_cpu_offload = bool(mem_cfg.get("use_cpu_offload", False))
+        self._use_disk_offload = bool(mem_cfg.get("use_disk_offload", False))
+        
+        # 勾配チェックポイントングを有効化
+        if self._gradient_checkpointing:
+            self.model.gradient_checkpointing_enable()
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
         return self.model(images)
@@ -158,6 +169,13 @@ class PLHeatmapModule(pl.LightningModule):
         opt.step()
         self.log("train/loss", total_loss, on_step=True, on_epoch=True,
                  prog_bar=True, batch_size=B)
+        
+        # メモリ使用量をログ
+        if torch.cuda.is_available():
+            memory_stats = get_memory_usage()
+            self.log("memory/allocated_gb", memory_stats["allocated"], on_step=True, on_epoch=True)
+            self.log("memory/cached_gb", memory_stats["cached"], on_step=True, on_epoch=True)
+        
         return total_loss
 
     def _handle_oom(self, opt) -> None:

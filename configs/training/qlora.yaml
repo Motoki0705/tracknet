@@ -1,0 +1,69 @@
+# QLoRAトレーニング設定
+# PEFTライブラリを使用してLoRA適用
+
+# 基本設定
+seed: 42
+batch_size: 8  # QLoRAの場合はバッチサイズを小さく
+epochs: 30  # LoRAの場合はエポック数を多めに
+precision: bf16  # QLoRAと相性が良い
+
+# QLoRA設定
+quantization:
+  enabled: true
+  load_in_4bit: true  # 4ビット量子化
+  bnb_4bit_compute_dtype: bf16
+  bnb_4bit_use_double_quant: true
+  bnb_4bit_quant_type: "nf4"  # nf4またはfp4
+
+# LoRA設定
+lora:
+  enabled: true
+  r: 16  # LoRAランク
+  lora_alpha: 32  # LoRAスケーリングパラメータ
+  target_modules: []  # 空で自動検出、または["query", "value"]など指定
+  lora_dropout: 0.1
+  bias: "none"
+  task_type: "FEATURE_EXTRACTION"  # Vision Transformer用
+
+# 勾配クリッピング
+grad_clip: 1.0
+backbone_freeze_epochs: 0  # LoRAの場合はバックボーンを凍結しない
+
+# 適応的マイクロバッチング設定
+adaptive_micro_batch: true
+min_micro_batch_size: 1  # QLoRAの場合は最小バッチサイズを1に
+mb_backoff_factor: 2
+oom_retries: 5  # QLoRAの場合はリトライ回数を増やす
+micro_batch_size: 0
+grad_clip_norm: 1.0
+
+# DataLoaderパフォーマンスチューニング
+data_loader:
+  num_workers: 2  # メモリ使用量を抑えるために減らす
+  pin_memory: true
+  persistent_workers: true
+  prefetch_factor: 2
+  drop_last: false
+
+# オプティマイザ設定
+optimizer:
+  name: adamw
+  lr: 1.0e-4  # LoRAの場合は低い学習率
+  weight_decay: 0.01
+
+# スケジューラ設定
+scheduler:
+  name: cosine
+  warmup_epochs: 5  # LoRAの場合はウォームアップを長めに
+  warmup_start_factor: 0.05
+
+# メモリ最適化
+memory_optimization:
+  gradient_checkpointing: true
+  use_cpu_offload: true  # QLoRAの場合はCPUオフロードを有効化
+  use_disk_offload: false
+
+# 出力ディレクトリ
+output_dir: outputs
+log_dir: outputs/logs
+ckpt_dir: outputs/checkpoints
