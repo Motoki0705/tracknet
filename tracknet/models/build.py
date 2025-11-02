@@ -24,7 +24,6 @@ from tracknet.models.decoders.upsampling_decoder import UpsamplingDecoder
 from tracknet.models.decoders.hrnet_decoder import HRDecoder, HRDecoderConfig
 from tracknet.models.decoders.deformable_decoder import DeformableFPNDecoder, DeformableDecoderConfig
 from tracknet.models.heads.heatmap_head import HeatmapHead
-from tracknet.utils.quantization import setup_quantization_training
 
 
 class HeatmapModel(nn.Module):
@@ -192,21 +191,13 @@ class HeatmapModel(nn.Module):
             return self.head(hr_features)
 
 
-def build_model(model_cfg: DictConfig, training_cfg: Optional[DictConfig] = None) -> nn.Module:
+def build_model(model_cfg: DictConfig) -> nn.Module:
     """Build a TrackNet heatmap model from configuration.
 
     Args:
         model_cfg: OmegaConf section describing the model.
-        training_cfg: Optional OmegaConf section describing training configuration 
-                     (used for quantization setup).
 
     Returns:
         nn.Module: a constructed heatmap prediction model.
     """
-    model = HeatmapModel(model_cfg)
-    
-    # Apply quantization if training config is provided and quantization is enabled
-    if training_cfg is not None:
-        model = setup_quantization_training(model, training_cfg)
-    
-    return model
+    return HeatmapModel(model_cfg)

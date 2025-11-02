@@ -160,31 +160,18 @@ def main(argv: List[str] | None = None) -> int:
         return "32-true"
 
     # Trainer
-    trainer_kwargs = {
-        "accelerator": ("gpu" if torch.cuda.is_available() else "cpu"),
-        "devices": "auto",
-        "precision": _map_precision(),
-        "max_epochs": int(cfg.training.get("epochs", 1)),
-        "limit_train_batches": int(cfg.training.get("limit_train_batches", 0)) or 1.0,
-        "limit_val_batches": int(cfg.training.get("limit_val_batches", 0)) or 1.0,
-        "logger": csv_logger,
-        "callbacks": callbacks,
-        "log_every_n_steps": 50,
-        "enable_progress_bar": True,
-    }
-    
-    # メモリ最適化設定を適用
-    mem_cfg = cfg.training.get("memory_optimization", {})
-    if mem_cfg.get("use_cpu_offload", False) and torch.cuda.is_available():
-        trainer_kwargs["accelerator"] = "gpu"
-        trainer_kwargs["devices"] = 1
-        # CPUオフロードはLightningの戦略で実装
-        print("CPU offload enabled - may reduce training speed")
-    
-    if mem_cfg.get("use_disk_offload", False):
-        print("Disk offload enabled - significantly reduces training speed")
-    
-    trainer = pl.Trainer(**trainer_kwargs)
+    trainer = pl.Trainer(
+        accelerator=("gpu" if torch.cuda.is_available() else "cpu"),
+        devices="auto",
+        precision=_map_precision(),
+        max_epochs=int(cfg.training.get("epochs", 1)),
+        limit_train_batches=int(cfg.training.get("limit_train_batches", 0)) or 1.0,
+        limit_val_batches=int(cfg.training.get("limit_val_batches", 0)) or 1.0,
+        logger=csv_logger,
+        callbacks=callbacks,
+        log_every_n_steps=50,
+        enable_progress_bar=True,
+    )
 
     trainer.fit(lit_module, datamodule=datamodule)
     return 0
