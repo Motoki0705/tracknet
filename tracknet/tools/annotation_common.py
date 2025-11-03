@@ -123,7 +123,7 @@ def merge_nested_dict(
 
 
 def iter_games_clips(base_dir: Path) -> Iterable[tuple[str, Path]]:
-    """Yield ``(game_id, game_path)`` pairs sorted by name.
+    """Yield ``(game_id, game_path)`` pairs sorted by numeric order.
 
     Args:
         base_dir: Root directory that potentially contains game folders.
@@ -134,13 +134,28 @@ def iter_games_clips(base_dir: Path) -> Iterable[tuple[str, Path]]:
 
     if not base_dir.exists():
         return []
-    for child in sorted(base_dir.iterdir()):
-        if child.is_dir() and child.name.lower().startswith("game"):
-            yield child.name, child
+    
+    def extract_game_number(game_name: str) -> int:
+        """Extract numeric part from game name (e.g., 'game1' -> 1)."""
+        import re
+        match = re.search(r'game(\d+)', game_name.lower())
+        return int(match.group(1)) if match else 0
+    
+    game_dirs = [
+        (child.name, child) 
+        for child in base_dir.iterdir() 
+        if child.is_dir() and child.name.lower().startswith("game")
+    ]
+    
+    # Sort by numeric game number
+    game_dirs.sort(key=lambda x: extract_game_number(x[0]))
+    
+    for game_id, game_path in game_dirs:
+        yield game_id, game_path
 
 
 def iter_clip_dirs(game_dir: Path) -> Iterable[tuple[str, Path]]:
-    """Yield ``(clip_id, clip_path)`` pairs under ``game_dir``.
+    """Yield ``(clip_id, clip_path)`` pairs under ``game_dir`` sorted by numeric order.
 
     Args:
         game_dir: Path to a specific game directory.
@@ -149,6 +164,20 @@ def iter_clip_dirs(game_dir: Path) -> Iterable[tuple[str, Path]]:
         tuple[str, Path]: Clip identifier and directory path.
     """
 
-    for child in sorted(game_dir.iterdir()):
-        if child.is_dir():
-            yield child.name, child
+    def extract_clip_number(clip_name: str) -> int:
+        """Extract numeric part from clip name (e.g., 'Clip1' -> 1, 'clip10' -> 10)."""
+        import re
+        match = re.search(r'clip(\d+)', clip_name.lower())
+        return int(match.group(1)) if match else 0
+    
+    clip_dirs = [
+        (child.name, child) 
+        for child in game_dir.iterdir() 
+        if child.is_dir()
+    ]
+    
+    # Sort by numeric clip number
+    clip_dirs.sort(key=lambda x: extract_clip_number(x[0]))
+    
+    for clip_id, clip_path in clip_dirs:
+        yield clip_id, clip_path

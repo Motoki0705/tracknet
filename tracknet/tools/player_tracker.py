@@ -25,6 +25,10 @@ from tracknet.tools.annotation_converter import (
     load_player_assignments,
 )
 from tracknet.tools.utils.ui.player_identifier import PlayerIdentifierUI
+from tracknet.tools.utils.video_generator import (
+    generate_video_from_frames,
+    validate_frame_sequence,
+)
 
 try:
     from tracknet.tools.utils.preprocess.tracker import Tracker as DefaultTracker
@@ -165,6 +169,7 @@ class PlayerTrackerApp:
         self.player_assignments_path = args.player_assignments
         self.annotations_path = args.annotations
         self.tracker_factory = tracker_factory or default_tracker_factory
+        self._temp_videos: List[str] = []  # Track temporary videos for cleanup
         logging.basicConfig(level=getattr(logging, args.log_level))
 
     # --------------------------------------------------------------------- detect
@@ -223,6 +228,22 @@ class PlayerTrackerApp:
 
         if not self.args.dry_run:
             write_json_atomic(self.person_tracks_path, meta)
+        
+        # Clean up temporary videos
+        self._cleanup_temp_videos()
+
+    def _cleanup_temp_videos(self) -> None:
+        """Clean up any temporary videos generated during processing."""
+        import os
+        
+        for temp_video in self._temp_videos:
+            try:
+                if os.path.exists(temp_video):
+                    os.unlink(temp_video)
+                    LOGGER.debug(f"Cleaned up temporary video: {temp_video}")
+            except Exception as e:
+                LOGGER.warning(f"Failed to cleanup temporary video {temp_video}: {e}")
+        self._temp_videos.clear()
 
     # --------------------------------------------------------------------- assign
     def run_assign(self) -> None:
@@ -330,19 +351,40 @@ class PlayerTrackerApp:
         return result
 
     def _find_video_path(self, clip_dir: Path, extensions: Sequence[str]) -> Path | None:
-        """Locate a video inside ``clip_dir``.
+        """Locate a video inside ``clip_dir`` or generate from frame sequence.
 
         Args:
-            clip_dir: Directory containing video assets.
+            clip_dir: Directory containing video assets or frame sequences.
             extensions: Ordered list of candidate extensions (``.mp4`` etc.).
 
         Returns:
-            Optional[Path]: Path to the first matching video file.
+            Optional[Path]: Path to video file (existing or generated).
         """
-
+        # First try to find existing video file
         for candidate in sorted(clip_dir.iterdir()):
             if candidate.suffix.lower() in extensions and candidate.is_file():
                 return candidate
+        
+        # If no video found, check for frame sequence and generate video
+        is_valid, issues = validate_frame_sequence(clip_dir)
+        if is_valid:
+            LOGGER.info("No video found in %s, generating from frame sequence", clip_dir)
+            try:
+                # Generate video without automatic cleanup
+                with generate_video_from_frames(clip_dir, cleanup=False) as temp_video_path:
+                    if temp_video_path:
+                        # Store the path for cleanup later
+                        self._temp_videos.append(temp_video_path)
+                        return Path(temp_video_path)
+                    else:
+                        LOGGER.error("Video generation returned None")
+                        return None
+            except Exception as e:
+                LOGGER.error(f"Failed to generate video from frames in {clip_dir}: {e}")
+                return None
+        else:
+            LOGGER.debug("Frame sequence validation failed for %s: %s", clip_dir, issues)
+            
         return None
 
     def _build_clip_from_history(self, history: List[List[Dict[str, Any]]], source: str) -> Dict[str, Any]:
@@ -360,7 +402,10 @@ class PlayerTrackerApp:
         for frame_id, detections in enumerate(history):
             for det in detections:
                 track_id = str(det.get("id"))
-                bbox = det.get("bbx_xyxy") or det.get("bbox")
+                # Handle bbox extraction properly for numpy arrays
+                bbox = det.get("bbx_xyxy")
+                if bbox is None:
+                    bbox = det.get("bbox")
                 if bbox is None:
                     continue
                 xywh = convert_bbox_xyxy_to_xywh(bbox)

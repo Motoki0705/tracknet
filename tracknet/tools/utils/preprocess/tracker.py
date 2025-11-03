@@ -1,25 +1,155 @@
 from ultralytics import YOLO
-from hmr4d import PROJ_ROOT
+from pathlib import Path
 
 import torch
 import numpy as np
 from tqdm import tqdm
 from collections import defaultdict
+import cv2
+import logging
 
-from hmr4d.utils.seq_utils import (
-    get_frame_id_list_from_mask,
-    linear_interpolate_frame_ids,
-    frame_id_to_mask,
-    rearrange_by_mask,
-)
-from hmr4d.utils.video_io_utils import get_video_lwh
-from hmr4d.utils.net_utils import moving_average_smooth
+
+def get_video_lwh(video_path: str) -> tuple[int, int, int]:
+    """Get video length, width, and height.
+    
+    Args:
+        video_path: Path to video file
+        
+    Returns:
+        Tuple of (length_frames, width, height)
+    """
+    cap = cv2.VideoCapture(video_path)
+    length = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    cap.release()
+    return length, width, height
+
+
+def frame_id_to_mask(frame_ids: torch.Tensor, total_frames: int) -> torch.Tensor:
+    """Convert frame IDs to binary mask.
+    
+    Args:
+        frame_ids: Tensor of frame indices
+        total_frames: Total number of frames
+        
+    Returns:
+        Binary mask tensor of shape (total_frames,)
+    """
+    mask = torch.zeros(total_frames, dtype=torch.bool)
+    mask[frame_ids] = True
+    return mask
+
+
+def get_frame_id_list_from_mask(mask: torch.Tensor) -> list[list[int]]:
+    """Get consecutive frame ID lists from mask.
+    
+    Args:
+        mask: Binary mask where False indicates missing frames
+        
+    Returns:
+        List of lists containing consecutive frame IDs
+    """
+    missing_indices = torch.where(~mask)[0].tolist()
+    
+    if not missing_indices:
+        return []
+    
+    # Group consecutive indices
+    result = []
+    current_group = [missing_indices[0]]
+    
+    for idx in missing_indices[1:]:
+        if idx == current_group[-1] + 1:
+            current_group.append(idx)
+        else:
+            result.append(current_group)
+            current_group = [idx]
+    
+    result.append(current_group)
+    return result
+
+
+def rearrange_by_mask(data: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    """Rearrange data according to mask, filling missing with zeros.
+    
+    Args:
+        data: Input data tensor
+        mask: Binary mask for arrangement
+        
+    Returns:
+        Rearranged tensor with zeros for missing positions
+    """
+    result = torch.zeros(mask.shape[0], data.shape[1])
+    result[mask] = data
+    return result
+
+
+def linear_interpolate_frame_ids(data: torch.Tensor, missing_frame_groups: list[list[int]]) -> torch.Tensor:
+    """Linear interpolate missing frames.
+    
+    Args:
+        data: Tensor with some zero-filled frames
+        missing_frame_groups: Groups of consecutive missing frame indices
+        
+    Returns:
+        Interpolated tensor
+    """
+    for group in missing_frame_groups:
+        for frame_idx in group:
+            if frame_idx == 0 or frame_idx == len(data) - 1:
+                continue
+                
+            # Find previous and next non-zero frames
+            prev_idx = frame_idx - 1
+            while prev_idx >= 0 and torch.all(data[prev_idx] == 0):
+                prev_idx -= 1
+                
+            next_idx = frame_idx + 1
+            while next_idx < len(data) and torch.all(data[next_idx] == 0):
+                next_idx += 1
+                
+            if prev_idx >= 0 and next_idx < len(data):
+                # Linear interpolation
+                alpha = (frame_idx - prev_idx) / (next_idx - prev_idx)
+                data[frame_idx] = (1 - alpha) * data[prev_idx] + alpha * data[next_idx]
+    
+    return data
+
+
+def moving_average_smooth(data: torch.Tensor, window_size: int, dim: int = 0) -> torch.Tensor:
+    """Apply moving average smoothing.
+    
+    Args:
+        data: Input tensor
+        window_size: Size of moving window
+        dim: Dimension along which to smooth
+        
+    Returns:
+        Smoothed tensor
+    """
+    if window_size >= data.shape[dim]:
+        return data
+        
+    kernel = torch.ones(window_size) / window_size
+    if dim == 0:
+        smoothed = torch.zeros_like(data)
+        for i in range(data.shape[1]):
+            smoothed[:, i] = torch.conv1d(
+                data[:, i].unsqueeze(0).unsqueeze(0).float(),
+                kernel.unsqueeze(0).unsqueeze(0),
+                padding=window_size//2
+            ).squeeze()
+        return smoothed
+    else:
+        raise NotImplementedError(f"Smoothing along dim {dim} not implemented")
 
 
 class Tracker:
     def __init__(self) -> None:
         # https://docs.ultralytics.com/modes/predict/
-        self.yolo = YOLO(PROJ_ROOT / "checkpoints/yolo/yolov8x.pt")
+        model_path = Path(__file__).parent.parent.parent.parent.parent / "checkpoints" / "yolo" / "yolov8x.pt"
+        self.yolo = YOLO(str(model_path))
 
     def track(self, video_path):
         track_history = []

@@ -5,8 +5,8 @@
 ## 2. Tooling Implementation
 - [x] 2.1 Implement `tracknet/tools/annotation_converter.py` to merge ball CSVs, player selections, and court annotations into `data/tracknet/annotations.json`.
 - [x] 2.2 Implement `tracknet/tools/player_tracker.py` with CLI modes for YOLOv8 detection (`--mode detect`) and player assignment UI (`--mode assign`), persisting `outputs/tracking/person_tracks.json` and `outputs/tracking/player_assignments.json`.
-- [ ] 2.3 Implement `tracknet/tools/utils/video_generator.py` to convert JPG frame sequences to temporary MP4 videos for YOLOv8 processing.
-- [ ] 2.4 Update `tracknet/tools/player_tracker.py` to integrate video generation before tracking, including proper cleanup of temporary files.
+- [x] 2.3 Implement `tracknet/tools/utils/video_generator.py` to convert JPG frame sequences to temporary MP4 videos for YOLOv8 processing.
+- [x] 2.4 Update `tracknet/tools/player_tracker.py` to integrate video generation before tracking, including proper cleanup of temporary files.
 - [x] 2.5 Implement `tracknet/tools/utils/ui/player_identifier.py` as a Matplotlib UI component used by `player_tracker.py` for multi-select player ID assignment with clip navigation and save/resume support.
 - [x] 2.6 Implement `tracknet/tools/court_annotation_manager.py` to manage loading/saving per-game court annotations via UI input.
 - [x] 2.7 Implement `tracknet/tools/utils/ui/court_annotation_form.py` to collect per-game court geometry and save to `outputs/court_annotations/games.json`.
@@ -14,8 +14,8 @@
 ## 3. Validation
 - [x] 3.1 Add automated tests confirming YOLOv8 model loading succeeds (skip or mark xfail when weights unavailable).
 - [x] 3.2 Add integration test covering `tracker.py` invocation to verify expected tracking structure.
-- [ ] 3.3 Add test for `video_generator.py` confirming frame sequence to MP4 conversion with proper FPS and ordering.
-- [ ] 3.4 Add integration test confirming `player_tracker.py --mode detect` successfully generates temporary videos and cleans them up.
+- [x] 3.3 Add test for `video_generator.py` confirming frame sequence to MP4 conversion with proper FPS and ordering.
+- [x] 3.4 Add integration test confirming `player_tracker.py --mode detect` successfully generates temporary videos and cleans them up.
 - [x] 3.5 Add schema validation tests for `outputs/tracking/person_tracks.json` and `outputs/tracking/player_assignments.json`.
 - [x] 3.6 Add schema validation test for `outputs/court_annotations/games.json`, including required keypoints and skeleton.
 - [x] 3.7 Add multi-stage validation test for `data/tracknet/annotations.json` covering ball-only, ball+player, and full (ball+player+court) scenarios, asserting ball `visibility` ∈ {0,1,2,3} and `status` ∈ {0,1,2,null}.
