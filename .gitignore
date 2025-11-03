@@ -16,3 +16,5 @@ annotation.json
 # checkpoints and logs
 checkpoints/
 logs/
+outputs/
+*.pt
