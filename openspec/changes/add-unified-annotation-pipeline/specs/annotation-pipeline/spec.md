@@ -3,7 +3,7 @@
 The system MUST convert per-clip ball CSV annotations into a single `data/tracknet/annotations.json` file that captures ball visibility/status and player bounding boxes per frame.
 
 #### Scenario: Convert Ball CSVs
-- **GIVEN** `data/tracknet/<game>/<clip>/ball.csv` annotations exist
+- **GIVEN** `data/tracknet/<game>/<clip>/Label.csv` annotations exist
 - **WHEN** I run `uv run python tracknet/tools/annotation_converter.py`
 - **THEN** the tool reads every clip CSV and writes ball coordinates (with integer `visibility` and `status` metadata per `docs/data/tracknet.md`) into `data/tracknet/annotations.json` grouped by game and clip.
 - **AND** the resulting structure organizes per-frame data for efficient loading while remaining extensible.

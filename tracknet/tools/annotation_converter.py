@@ -124,7 +124,7 @@ def parse_ball_csv(csv_path: Path) -> Dict[str, List[Any]]:
     """Parse ball CSV/Label file into column-aligned arrays.
 
     Args:
-        csv_path: Path to ``ball.csv`` or ``Label.csv``.
+        csv_path: Path to `Label.csv`.
 
     Returns:
         Dict[str, List[Any]]: Column-aligned ball annotation arrays.
@@ -357,8 +357,6 @@ def convert_annotations(config: argparse.Namespace) -> Dict[str, Any]:
                 continue
 
             csv_candidates = [
-                clip_dir / "ball.csv",
-                clip_dir / "Ball.csv",
                 clip_dir / "Label.csv",
             ]
             csv_path = next((path for path in csv_candidates if path.exists()), None)
