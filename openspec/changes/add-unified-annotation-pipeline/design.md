@@ -4,8 +4,25 @@ We are introducing a tooling suite that unifies ball, player, and court annotati
 1. **Data aggregation (`tracknet/tools/annotation_converter.py`)** — merge disparate annotation sources into `data/tracknet/annotations.json`.
 2. **Player tracking & selection (`tracknet/tools/player_tracker.py`, `tracknet/tools/utils/ui/player_identifier.py`)** — batch run person tracking and collect user decisions on which track IDs represent players using a Matplotlib UI.
 3. **Court annotation (`tracknet/tools/court_annotation_manager.py`, `tracknet/tools/utils/ui/court_annotation_form.py`)** — capture static per-game court geometry via UI and feed it into the unified artifact.
+4. **Video generation (`tracknet/tools/utils/video_generator.py`)** — convert frame sequences to temporary videos for YOLOv8 processing.
 
 All tooling should be idempotent and safe to re-run, enabling iterative annotation without overwriting user-confirmed data unintentionally.
+
+## Video Generation Architecture
+
+Since the dataset stores frames as individual JPG images (`data/tracknet/<game>/<clip>/XXXX.jpg`), we need on-the-fly video generation for YOLOv8 tracking:
+
+### Frame-to-Video Conversion
+- **Input**: Sequential JPG frames named with 4-digit zero-padding (`0001.jpg`, `0002.jpg`, etc.)
+- **Processing**: Sort frames numerically, generate MP4 at 30 FPS using OpenCV VideoWriter
+- **Output**: Temporary video files in system temp directory, automatically cleaned up
+- **Fallback**: If video generation fails, log warning and skip the clip
+
+### Integration Points
+- `player_tracker.py --mode detect` calls video generator before YOLOv8 tracking
+- Temporary videos are created per-clip, used immediately, then deleted
+- Error handling ensures missing/corrupt frames don't crash the entire pipeline
+- Frame ordering preserved based on numeric filename parsing
 
 ## Data Model
 
@@ -179,7 +196,8 @@ All schemas should tolerate forward-compatible optional keys but must fail valid
 
 ### `tracknet/tools/player_tracker.py`
 - Offer a CLI flag or subcommand (e.g., `--mode detect` / `--mode assign`) to choose between running detection and launching the assignment UI.
-- **Detect mode**: enumerate clip directories under `data/tracknet/`, invoke `tracker.py` / YOLOv8 tracking for each clip, and aggregate results into `outputs/tracking/person_tracks.json` keyed by game, clip, and track ID metadata. Implement caching and a `--force` option to recompute.
+- **Detect mode**: enumerate clip directories under `data/tracknet/`, generate temporary videos from frame sequences, invoke `tracker.py` / YOLOv8 tracking for each clip, and aggregate results into `outputs/tracking/person_tracks.json` keyed by game, clip, and track ID metadata. Implement caching and a `--force` option to recompute.
+- **Video generation**: before tracking, convert JPG frame sequences to temporary MP4 files using OpenCV VideoWriter at 30 FPS, ensuring proper frame ordering based on numeric filenames. Clean up temporary files after processing.
 - **Assign mode**: load existing `person_tracks.json`, invoke the Matplotlib UI helper, and ensure the resulting selections are persisted to `outputs/tracking/player_assignments.json`.
 - Both modes continuously sync JSON files so reruns pick up prior state without reprocessing finished clips.
 - Provide helper functions to:

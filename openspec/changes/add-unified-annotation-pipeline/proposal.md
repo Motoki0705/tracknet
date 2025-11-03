@@ -6,6 +6,7 @@
 ## What Changes
 - Build tooling to ingest per-clip CSV ball annotations and emit a consolidated `data/tracknet/annotation.json`.
 - Add automated person tracking plus a lightweight UI so users can label player track IDs per clip.
+- Add video generation capability to convert frame sequences to temporary videos for YOLOv8 processing.
 - Add court annotation UI at the game level so users can supply static court geometry per game.
 - Integrate these sources into a single JSON payload via a converter tool.
 
