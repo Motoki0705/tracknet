@@ -271,15 +271,47 @@ class PlayerTrackerApp:
             annotation_games = annotation_cache["games"]
 
         filtered_clips = self._filtered_clip_keys(person_tracks["index"])
-        ui_payload = [
-            {
-                "game_id": game_id,
-                "clip_id": clip_id,
-                "clip_data": person_tracks["index"][game_id][clip_id],
-                "assignment": assignments["index"].get(game_id, {}).get(clip_id),
-            }
-            for game_id, clip_id in filtered_clips
-        ]
+        meta_games: MutableMapping[str, Any] = {}
+        if isinstance(person_tracks.get("meta"), MutableMapping):
+            games_candidate = person_tracks["meta"].get("games", {}) or {}
+            if isinstance(games_candidate, MutableMapping):
+                meta_games = games_candidate
+        ui_payload = []
+        for game_id, clip_id in filtered_clips:
+            track_index = person_tracks["index"].get(game_id, {}).get(clip_id, {})
+            if not isinstance(track_index, MutableMapping):
+                track_index = {}
+
+            game_meta = meta_games.get(game_id, {})
+            if not isinstance(game_meta, MutableMapping):
+                game_meta = {}
+            clips_meta = game_meta.get("clips", {})
+            if not isinstance(clips_meta, MutableMapping):
+                clips_meta = {}
+            clip_entry: MutableMapping[str, Any] | Dict[str, Any] = clips_meta.get(clip_id, {})
+            if not isinstance(clip_entry, MutableMapping):
+                clip_entry = {}
+            if not clip_entry.get("tracks") and track_index:
+                clip_entry = {"tracks": dict(track_index)}
+            clip_dir = (self.data_root / game_id / clip_id).resolve()
+            source_value = clip_entry.get("source")
+            source_path = None
+            if source_value:
+                candidate = Path(source_value)
+                if not candidate.is_absolute():
+                    candidate = (self.data_root / candidate).resolve()
+                if candidate.exists():
+                    source_path = candidate
+            ui_payload.append(
+                {
+                    "game_id": game_id,
+                    "clip_id": clip_id,
+                    "clip_data": clip_entry,
+                    "assignment": assignments["index"].get(game_id, {}).get(clip_id),
+                    "frame_dir": str(clip_dir) if clip_dir.is_dir() else None,
+                    "media_source": str(source_path) if source_path else None,
+                }
+            )
         if not ui_payload:
             LOGGER.warning("No clips match the requested filters.")
             return
