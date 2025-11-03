@@ -24,7 +24,7 @@ Header columns: `file name, visibility, x-coordinate, y-coordinate, status`
 | `visibility`  | integer | Ball visibility class: `0` (not visible), `1` (visible), `2` (partially occluded), `3` (high occlusion/ambiguous) | Imbalanced: most frames are `1`. Decide whether to mask `0` entries or treat as negative samples when supervising coordinates. |
 | `x-coordinate`| string/integer | Pixel x-position of the ball. Blank when `visibility=0`. | Cast to int; guard against missing values. |
 | `y-coordinate`| string/integer | Pixel y-position of the ball. Blank when `visibility=0`. | Same handling as x. |
-| `status`      | integer | Rally state metadata: `0` (in-play), `1` (serve), `2` (bounce), blank (~729 rows) | Can enable multi-task training; blanks align with `visibility=0` frames. |
+| `status`      | integer | Rally state metadata: `0` (in-screen), `1` (shot), `2` (net), blank (~729 rows) | Can enable multi-task training; blanks align with `visibility=0` frames. |
 
 There are 19,835 labeled frames overall. Distribution highlights:
 - `visibility`: `1` (17,632), `2` (1,392), `0` (729), `3` (82)
