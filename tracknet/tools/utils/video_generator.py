@@ -4,10 +4,12 @@ This module provides functionality to convert JPG frame sequences to MP4 videos
 for YOLOv8 processing, with automatic cleanup of temporary files.
 """
 
+from __future__ import annotations
+
 import contextlib
 import logging
-import tempfile
 from pathlib import Path
+from typing import Generator
 
 import cv2
 
@@ -17,7 +19,7 @@ logger = logging.getLogger(__name__)
 @contextlib.contextmanager
 def generate_video_from_frames(
     frames_dir: Path, fps: int = 30, cleanup: bool = True
-) -> str | None:
+) -> Generator[str | None, None, None]:
     """Generate temporary MP4 video from JPG frame sequence.
 
     Args:
@@ -67,7 +69,7 @@ def generate_video_from_frames(
         os.close(temp_fd)
 
         # Setup video writer
-        fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+        fourcc = cv2.VideoWriter_fourcc(*"mp4v")  # type: ignore[attr-defined]
         video_writer = cv2.VideoWriter(temp_video_path, fourcc, fps, (width, height))
 
         if not video_writer.isOpened():

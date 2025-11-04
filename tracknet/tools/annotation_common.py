@@ -120,7 +120,7 @@ def merge_nested_dict(
         if isinstance(value, Mapping) and isinstance(
             destination.get(key), MutableMapping
         ):
-            merge_nested_dict(destination[key], value)  # type: ignore[index]
+            merge_nested_dict(destination[key], value)
         else:
             destination[key] = value
     return destination
@@ -137,7 +137,8 @@ def iter_games_clips(base_dir: Path) -> Iterable[tuple[str, Path]]:
     """
 
     if not base_dir.exists():
-        return []
+        return
+    # Or use: yield from ()
 
     def extract_game_number(game_name: str) -> int:
         """Extract numeric part from game name (e.g., 'game1' -> 1)."""

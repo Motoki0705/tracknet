@@ -18,9 +18,9 @@ import torch
 from PIL import Image
 
 try:  # Optional TensorBoard
-    from torch.utils.tensorboard import SummaryWriter  # type: ignore
+    from torch.utils.tensorboard import SummaryWriter
 except Exception:  # pragma: no cover - optional
-    SummaryWriter = None  # type: ignore[assignment]
+    SummaryWriter = None
 
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -152,7 +152,7 @@ def save_heatmap_png(hm: torch.Tensor, path: Path) -> None:
     """
 
     try:  # prefer matplotlib for colormap
-        import matplotlib.pyplot as plt  # type: ignore
+        import matplotlib.pyplot as plt
 
         arr = hm.squeeze().detach().cpu().numpy()
         plt.imsave(path.as_posix(), arr, cmap="jet")
@@ -194,7 +194,7 @@ def save_overlay_from_tensor(
 
     # Create RGBA overlay with colormap (jet-like colors)
     try:
-        import matplotlib.cm as cm  # type: ignore
+        import matplotlib.cm as cm
 
         # Apply jet colormap to heatmap
         hm_normalized = hm.squeeze().detach().cpu().numpy()
