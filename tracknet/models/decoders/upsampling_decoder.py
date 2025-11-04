@@ -184,9 +184,9 @@ class UpsamplingDecoder(nn.Module):
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
-        assert len(channels) >= 2, (
-            "channels must include input and at least one output stage"
-        )
+        assert (
+            len(channels) >= 2
+        ), "channels must include input and at least one output stage"
         self.channels = list(channels)
         num_stages = len(channels) - 1
 

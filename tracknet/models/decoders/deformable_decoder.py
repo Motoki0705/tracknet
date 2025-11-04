@@ -278,7 +278,9 @@ class DeformableFPNDecoder(nn.Module):
             spatial_shapes,
             level_start_index,
             pos_lvl_embed.permute(1, 0, 2),  # [B, total_tokens, C]
-        ).permute(1, 0, 2)  # [total_tokens, B, C]
+        ).permute(
+            1, 0, 2
+        )  # [total_tokens, B, C]
 
         # Split encoded features back to levels
         encoded_feats = []
