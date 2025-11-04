@@ -214,11 +214,5 @@ show_missing = true
 precision = 2
 fail_under = 75
 
-# Core modules require higher coverage
-[tool.coverage.report.core_modules]
-tracknet.utils = 90
-tracknet.models = 85
-tracknet.datasets = 85
-
 [tool.coverage.html]
 directory = "htmlcov"
