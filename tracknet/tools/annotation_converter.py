@@ -402,7 +402,7 @@ def convert_annotations(config: argparse.Namespace) -> dict[str, Any]:
 
     existing_output = read_json(config.output, default=None)
     if isinstance(existing_output, Mapping) and not config.dry_run:
-        merged_payload = merge_nested_dict(existing_output, merged_payload)  # type: ignore[arg-type]
+        merged_payload = merge_nested_dict(existing_output, merged_payload)  # type: ignore[assignment]
 
     if config.dry_run:
         return merged_payload

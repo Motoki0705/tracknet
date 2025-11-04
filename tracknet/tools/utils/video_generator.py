@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import tempfile
 from pathlib import Path
 from typing import Generator
 

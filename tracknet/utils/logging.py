@@ -13,14 +13,18 @@ import time
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import torch
 from PIL import Image
 
-try:  # Optional TensorBoard
+if TYPE_CHECKING:
     from torch.utils.tensorboard import SummaryWriter
-except Exception:  # pragma: no cover - optional
-    SummaryWriter = None
+else:
+    try:  # Optional TensorBoard
+        from torch.utils.tensorboard import SummaryWriter
+    except Exception:  # pragma: no cover - optional
+        SummaryWriter = None
 
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -159,8 +163,8 @@ def save_heatmap_png(hm: torch.Tensor, path: Path) -> None:
     except Exception:
         x = hm.squeeze().detach().cpu()
         x = (x - x.min()) / (x.max() - x.min() + 1e-8)
-        x = (x * 255.0).byte().numpy()
-        Image.fromarray(x, mode="L").save(path)
+        x_numpy = (x * 255.0).byte().numpy()
+        Image.fromarray(x_numpy, mode="L").save(path)
 
 
 def save_overlay_from_tensor(
@@ -187,10 +191,10 @@ def save_overlay_from_tensor(
     )
     x = hm.squeeze().detach().cpu()
     x = (x - x.min()) / (x.max() - x.min() + 1e-8)
-    x = (x * 255.0).byte().numpy()
+    x_numpy = (x * 255.0).byte().numpy()
 
     # Resize heatmap to match input image size to handle scale mismatch
-    hm_img = Image.fromarray(x, mode="L").resize(base.size, Image.BILINEAR)
+    hm_img = Image.fromarray(x_numpy, mode="L").resize(base.size, Image.Resampling.BILINEAR)
 
     # Create RGBA overlay with colormap (jet-like colors)
     try:
@@ -201,10 +205,10 @@ def save_overlay_from_tensor(
         hm_normalized = (hm_normalized - hm_normalized.min()) / (
             hm_normalized.max() - hm_normalized.min() + 1e-8
         )
-        hm_colored = cm.jet(hm_normalized)[:, :, :3]  # Take RGB only, drop alpha
+        hm_colored = cm.get_cmap("jet")(hm_normalized)[:, :, :3]  # Take RGB only, drop alpha
         hm_colored = (hm_colored * 255.0).astype("uint8")
         hm_colored_img = Image.fromarray(hm_colored, mode="RGB").resize(
-            base.size, Image.BILINEAR
+            base.size, Image.Resampling.BILINEAR
         )
 
         # Create overlay with proper alpha channel
