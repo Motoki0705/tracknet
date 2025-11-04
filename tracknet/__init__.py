@@ -12,4 +12,3 @@ from .constants import DEFAULT_PRETRAINED_MODEL
 __all__ = [
     "DEFAULT_PRETRAINED_MODEL",
 ]
-

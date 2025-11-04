@@ -26,10 +26,9 @@ Note:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple
+from typing import Any
 
 from PIL import Image
-import torch
 from torch.utils.data import Dataset
 
 from tracknet.datasets.utils.augmentations import (
@@ -48,7 +47,7 @@ class PreprocessConfig:
         flip_prob: Probability of horizontal flip.
     """
 
-    resize: Optional[Tuple[int, int]] = None
+    resize: tuple[int, int] | None = None
     normalize: bool = True
     flip_prob: float = 0.0
 
@@ -61,7 +60,7 @@ class BaseImageDataset(Dataset):
     augmentations, and returns a standardized dict.
     """
 
-    def __init__(self, preprocess: Optional[PreprocessConfig] = None) -> None:
+    def __init__(self, preprocess: PreprocessConfig | None = None) -> None:
         """Initialize the dataset.
 
         Args:
@@ -72,7 +71,7 @@ class BaseImageDataset(Dataset):
         self.preprocess = preprocess or PreprocessConfig()
 
     # ----- Methods expected from subclasses -----
-    def _get_record(self, index: int) -> Dict[str, Any]:  # pragma: no cover - abstract
+    def _get_record(self, index: int) -> dict[str, Any]:  # pragma: no cover - abstract
         """Return a record dict with keys ``path``, ``coord``, ``visibility``.
 
         The base class expects the following keys:
@@ -90,7 +89,7 @@ class BaseImageDataset(Dataset):
         raise NotImplementedError
 
     # ----- Core loading logic -----
-    def __getitem__(self, index: int) -> Dict[str, Any]:
+    def __getitem__(self, index: int) -> dict[str, Any]:
         """Load and return a single image sample.
 
         Args:
@@ -102,7 +101,7 @@ class BaseImageDataset(Dataset):
 
         rec = self._get_record(index)
         path: str = rec["path"]
-        coord: Tuple[float, float] = tuple(rec["coord"])  # type: ignore[assignment]
+        coord: tuple[float, float] = tuple(rec["coord"])  # type: ignore[assignment]
         visibility: int = int(rec.get("visibility", 1))
 
         img = Image.open(path).convert("RGB")
@@ -121,7 +120,7 @@ class BaseImageDataset(Dataset):
         # Get current image size after augmentations
         curr_w, curr_h = img.size
 
-        sample: Dict[str, Any] = {
+        sample: dict[str, Any] = {
             "image": img_tensor,
             "coord": coord,
             "visibility": visibility,
@@ -129,8 +128,11 @@ class BaseImageDataset(Dataset):
                 "orig_size": (orig_w, orig_h),
                 "size": (curr_w, curr_h),
                 "path": path,
-                **{k: v for k, v in rec.items() if k not in {"path", "coord", "visibility"}},
+                **{
+                    k: v
+                    for k, v in rec.items()
+                    if k not in {"path", "coord", "visibility"}
+                },
             },
         }
         return sample
-

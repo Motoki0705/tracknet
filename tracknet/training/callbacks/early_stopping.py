@@ -5,11 +5,9 @@ Stops training when a monitored metric has stopped improving.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Literal
-
-import math
-
 
 Mode = Literal["min", "max"]
 
@@ -48,13 +46,11 @@ class EarlyStopping:
         """
 
         improved = (
-            (self.cfg.mode == "min" and value < self.best - self.cfg.min_delta) or
-            (self.cfg.mode == "max" and value > self.best + self.cfg.min_delta)
-        )
+            self.cfg.mode == "min" and value < self.best - self.cfg.min_delta
+        ) or (self.cfg.mode == "max" and value > self.best + self.cfg.min_delta)
         if improved:
             self.best = value
             self.num_bad = 0
             return False
         self.num_bad += 1
         return self.num_bad > self.cfg.patience
-

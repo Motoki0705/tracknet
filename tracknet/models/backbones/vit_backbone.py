@@ -7,8 +7,8 @@
 """
 
 from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional, Tuple
 
 import torch
 import torch.nn as nn
@@ -17,10 +17,11 @@ import torch.nn as nn
 @dataclass
 class ViTBackboneConfig:
     """Configuration (HF only, minimal)."""
+
     pretrained_model_name: str = "facebook/dinov3-vitb16-pretrain-lvd1689m"
-    device_map: Optional[str] = "auto"
+    device_map: str | None = "auto"
     local_files_only: bool = True
-    patch_size: int = 16              # 要件: グリッドは H//16, W//16 に固定
+    patch_size: int = 16  # 要件: グリッドは H//16, W//16 に固定
 
 
 class ViTBackbone(nn.Module):
@@ -37,7 +38,9 @@ class ViTBackbone(nn.Module):
         try:
             from transformers import AutoModel  # lazy import
         except Exception as e:  # pragma: no cover
-            raise RuntimeError("transformers が見つかりません。`pip install transformers` を実行してください。") from e
+            raise RuntimeError(
+                "transformers が見つかりません。`pip install transformers` を実行してください。"
+            ) from e
 
         # モデル読み込み（ローカルキャッシュ優先）
         try:
@@ -76,12 +79,16 @@ class ViTBackbone(nn.Module):
             [B, H//16, W//16, C]
         """
         if images.dim() != 4 or images.size(1) != 3:
-            raise ValueError(f"Expected images shape [B,3,H,W], got {tuple(images.shape)}")
+            raise ValueError(
+                f"Expected images shape [B,3,H,W], got {tuple(images.shape)}"
+            )
 
         B, _, H, W = images.shape
         ps = self.patch_size
         if (H % ps) != 0 or (W % ps) != 0:
-            raise ValueError(f"H({H}) と W({W}) は patch_size({ps}) の倍数である必要があります。")
+            raise ValueError(
+                f"H({H}) と W({W}) は patch_size({ps}) の倍数である必要があります。"
+            )
 
         Hp, Wp = H // ps, W // ps
 

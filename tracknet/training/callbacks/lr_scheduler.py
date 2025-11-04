@@ -10,7 +10,6 @@ from typing import Literal
 
 import torch
 
-
 When = Literal["epoch", "batch"]
 
 
@@ -55,4 +54,3 @@ class LRSchedulerCallback:
                     self.scheduler.step()
             except TypeError:
                 self.scheduler.step()
-

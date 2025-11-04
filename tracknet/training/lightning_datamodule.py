@@ -11,13 +11,9 @@ Design goals:
 
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
-import torch
-from torch.utils.data import DataLoader
 import pytorch_lightning as pl
-
 from omegaconf import DictConfig
+from torch.utils.data import DataLoader
 
 from tracknet.datasets import (
     PreprocessConfig,
@@ -44,10 +40,10 @@ class TrackNetDataModule(pl.LightningDataModule):
         self.cfg = cfg
         self.train_ds = None
         self.val_ds = None
-        self._heatmap_size: Optional[Tuple[int, int]] = None
-        self._sigma: Optional[float] = None
+        self._heatmap_size: tuple[int, int] | None = None
+        self._sigma: float | None = None
 
-    def setup(self, stage: Optional[str] = None) -> None:
+    def setup(self, stage: str | None = None) -> None:
         """Build datasets for the given stage.
 
         Args:
@@ -58,9 +54,11 @@ class TrackNetDataModule(pl.LightningDataModule):
         mcfg = self.cfg.model
 
         pp = PreprocessConfig(
-            resize=None
-            if dcfg.preprocess.get("resize", None) in (None, "null")
-            else tuple(dcfg.preprocess.resize),
+            resize=(
+                None
+                if dcfg.preprocess.get("resize", None) in (None, "null")
+                else tuple(dcfg.preprocess.resize)
+            ),
             normalize=bool(dcfg.preprocess.get("normalize", True)),
             flip_prob=float(dcfg.preprocess.get("flip_prob", 0.0)),
         )
@@ -94,7 +92,9 @@ class TrackNetDataModule(pl.LightningDataModule):
                 if dcfg.split.get("val_games")
                 else None
             )
-            self._collate_fn = lambda b: collate_sequences(b, heatmap_size=heatmap_size, sigma=sigma)
+            self._collate_fn = lambda b: collate_sequences(
+                b, heatmap_size=heatmap_size, sigma=sigma
+            )
         else:
             self.train_ds = TrackNetFrameDataset(
                 TrackNetFrameDatasetConfig(
@@ -114,7 +114,9 @@ class TrackNetDataModule(pl.LightningDataModule):
                 if dcfg.split.get("val_games")
                 else None
             )
-            self._collate_fn = lambda b: collate_frames(b, heatmap_size=heatmap_size, sigma=sigma)
+            self._collate_fn = lambda b: collate_frames(
+                b, heatmap_size=heatmap_size, sigma=sigma
+            )
 
     def _dataloader_common_kwargs(self) -> dict:
         tcfg = self.cfg.training
@@ -122,8 +124,12 @@ class TrackNetDataModule(pl.LightningDataModule):
         bs = int(tcfg.batch_size)
         num_workers = int(dl_cfg.get("num_workers", 0))
         pin_memory = bool(dl_cfg.get("pin_memory", False))
-        persistent_workers = bool(dl_cfg.get("persistent_workers", False)) and num_workers > 0
-        prefetch_factor = int(dl_cfg.get("prefetch_factor", 2)) if num_workers > 0 else None
+        persistent_workers = (
+            bool(dl_cfg.get("persistent_workers", False)) and num_workers > 0
+        )
+        prefetch_factor = (
+            int(dl_cfg.get("prefetch_factor", 2)) if num_workers > 0 else None
+        )
         drop_last = bool(dl_cfg.get("drop_last", False))
 
         kwargs: dict = dict(
@@ -140,10 +146,13 @@ class TrackNetDataModule(pl.LightningDataModule):
 
     def train_dataloader(self) -> DataLoader:
         assert self.train_ds is not None, "Call setup() before requesting dataloaders"
-        return DataLoader(self.train_ds, shuffle=True, **self._dataloader_common_kwargs())
+        return DataLoader(
+            self.train_ds, shuffle=True, **self._dataloader_common_kwargs()
+        )
 
-    def val_dataloader(self) -> Optional[DataLoader]:
+    def val_dataloader(self) -> DataLoader | None:
         if self.val_ds is None:
             return None
-        return DataLoader(self.val_ds, shuffle=False, **self._dataloader_common_kwargs())
-
+        return DataLoader(
+            self.val_ds, shuffle=False, **self._dataloader_common_kwargs()
+        )

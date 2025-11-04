@@ -13,40 +13,51 @@ from __future__ import annotations
 
 import argparse
 import sys
-from typing import List
 
 from omegaconf import OmegaConf
+
 
 # Heavy imports are delayed until needed
 def _import_lightning():
     """Delay import of lightning components to speed up startup."""
     global torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger
-    import torch
     import pytorch_lightning as pl
-    from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping, LearningRateMonitor
+    import torch
+    from pytorch_lightning.callbacks import (
+        EarlyStopping,
+        LearningRateMonitor,
+        ModelCheckpoint,
+    )
     from pytorch_lightning.loggers import CSVLogger
+
     return torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger
+
 
 def _import_tracknet():
     """Delay import of basic tracknet components."""
     global build_cfg
-    from tracknet.utils.config import add_config_cli_arguments, build_cfg
+    from tracknet.utils.config import build_cfg
+
     return build_cfg
+
 
 def _import_lightning_modules():
     """Delay import of lightning components."""
     global TrackNetDataModule, PLHeatmapModule
     from tracknet.training.lightning_datamodule import TrackNetDataModule
     from tracknet.training.lightning_module import PLHeatmapModule
+
     return TrackNetDataModule, PLHeatmapModule
 
 
 def _add_config_cli_arguments(parser):
     """Delay import of config utilities."""
     from tracknet.utils.config import add_config_cli_arguments
+
     add_config_cli_arguments(parser)
 
-def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
+
+def parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     """Parse CLI arguments, keeping unknown args as overrides.
 
     The unknown arguments are intended to be OmegaConf dotlist overrides like
@@ -65,7 +76,7 @@ def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
     return known, unknown
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     """Main entrypoint.
 
     Args:
@@ -76,22 +87,21 @@ def main(argv: List[str] | None = None) -> int:
     """
 
     import os
-    import sys
-    
+
     # Optimize Python startup
     sys.dont_write_bytecode = True
-    
+
     # Optimize PyTorch startup
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:128"
     os.environ["CUDA_LAUNCH_BLOCKING"] = "0"
     os.environ["PYTHONHASHSEED"] = "0"
-    
+
     if argv is None:
         argv = sys.argv[1:]
 
     args, overrides = parse_args(argv)
     build_cfg = _import_tracknet()
-    
+
     cfg = build_cfg(
         data_name=args.data_name,
         model_name=args.model_name,
@@ -111,9 +121,11 @@ def main(argv: List[str] | None = None) -> int:
         return 0
 
     # Import Lightning modules only when needed
-    torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger = _import_lightning()
+    torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger = (
+        _import_lightning()
+    )
     TrackNetDataModule, PLHeatmapModule = _import_lightning_modules()
-    
+
     # Launch training (Lightning)
     pl.seed_everything(int(cfg.runtime.seed), workers=True)
 
@@ -152,7 +164,11 @@ def main(argv: List[str] | None = None) -> int:
 
     # Precision mapping
     def _map_precision() -> str:
-        req = str(cfg.training.get("precision", cfg.training.get("amp", False) and "fp16" or "fp32")).lower()
+        req = str(
+            cfg.training.get(
+                "precision", cfg.training.get("amp", False) and "fp16" or "fp32"
+            )
+        ).lower()
         if req == "fp16" and torch.cuda.is_available():
             return "16-mixed"
         if req == "bf16" and torch.cuda.is_available():

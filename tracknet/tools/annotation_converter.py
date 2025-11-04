@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import argparse
 import csv
-from collections import defaultdict
+from collections.abc import Mapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Sequence
+from typing import Any
 
 from tracknet.tools.annotation_common import (
     COURT_KEYPOINTS,
@@ -120,7 +120,7 @@ def safe_float(value: Any, default: float | None = None) -> float | None:
         return default
 
 
-def parse_ball_csv(csv_path: Path) -> Dict[str, List[Any]]:
+def parse_ball_csv(csv_path: Path) -> dict[str, list[Any]]:
     """Parse ball CSV/Label file into column-aligned arrays.
 
     Args:
@@ -130,11 +130,11 @@ def parse_ball_csv(csv_path: Path) -> Dict[str, List[Any]]:
         Dict[str, List[Any]]: Column-aligned ball annotation arrays.
     """
 
-    frames: List[int] = []
-    xs: List[float | None] = []
-    ys: List[float | None] = []
-    visibilities: List[int] = []
-    statuses: List[int | None] = []
+    frames: list[int] = []
+    xs: list[float | None] = []
+    ys: list[float | None] = []
+    visibilities: list[int] = []
+    statuses: list[int | None] = []
 
     with csv_path.open("r", encoding="utf-8") as handle:
         reader = csv.DictReader(handle)
@@ -163,7 +163,7 @@ def parse_ball_csv(csv_path: Path) -> Dict[str, List[Any]]:
     }
 
 
-def load_person_tracks(path: Path) -> Dict[str, Any]:
+def load_person_tracks(path: Path) -> dict[str, Any]:
     """Load person tracking data keyed by game, clip, and track.
 
     Args:
@@ -176,12 +176,14 @@ def load_person_tracks(path: Path) -> Dict[str, Any]:
     payload = read_json(path, default={})
     games = payload.get("games", {}) if isinstance(payload, Mapping) else {}
 
-    index: Dict[str, Dict[str, Dict[str, Any]]] = {}
+    index: dict[str, dict[str, dict[str, Any]]] = {}
     for game_id, game_data in games.items():
         clips = game_data.get("clips", {}) if isinstance(game_data, Mapping) else {}
-        clip_index: Dict[str, Dict[str, Any]] = {}
+        clip_index: dict[str, dict[str, Any]] = {}
         for clip_id, clip_data in clips.items():
-            tracks = clip_data.get("tracks", {}) if isinstance(clip_data, Mapping) else {}
+            tracks = (
+                clip_data.get("tracks", {}) if isinstance(clip_data, Mapping) else {}
+            )
             clip_index[clip_id] = {str(tid): track for tid, track in tracks.items()}
         index[game_id] = clip_index
     return {
@@ -190,7 +192,7 @@ def load_person_tracks(path: Path) -> Dict[str, Any]:
     }
 
 
-def load_player_assignments(path: Path) -> Dict[str, Any]:
+def load_player_assignments(path: Path) -> dict[str, Any]:
     """Load user player assignments keyed by game and clip.
 
     Args:
@@ -202,14 +204,14 @@ def load_player_assignments(path: Path) -> Dict[str, Any]:
 
     payload = read_json(path, default={})
     games = payload.get("games", {}) if isinstance(payload, Mapping) else {}
-    index: Dict[str, Dict[str, Any]] = {}
+    index: dict[str, dict[str, Any]] = {}
     for game_id, game_data in games.items():
         clips = game_data.get("clips", {}) if isinstance(game_data, Mapping) else {}
         index[game_id] = {clip_id: clip_data for clip_id, clip_data in clips.items()}
     return {"meta": payload, "index": index}
 
 
-def load_court_annotations(path: Path) -> Dict[str, Any]:
+def load_court_annotations(path: Path) -> dict[str, Any]:
     """Load court annotations keyed by game.
 
     Args:
@@ -227,10 +229,10 @@ def load_court_annotations(path: Path) -> Dict[str, Any]:
 
 def build_player_payload(
     assignments: Mapping[str, Any],
-    track_lookup: Dict[str, Dict[str, Dict[str, Any]]],
+    track_lookup: dict[str, dict[str, dict[str, Any]]],
     game_id: str,
     clip_id: str,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Build per-player payload for the unified annotation.
 
     Args:
@@ -243,7 +245,7 @@ def build_player_payload(
         Dict[str, Any]: Player block ready for inclusion in the unified JSON.
     """
 
-    player_block: Dict[str, Any] = {}
+    player_block: dict[str, Any] = {}
     clip_assignment = assignments.get(game_id, {}).get(clip_id)
     if not clip_assignment:
         return player_block
@@ -255,13 +257,17 @@ def build_player_payload(
         if not track:
             continue
         detections = track.get("detections", [])
-        frames: List[int] = []
-        bboxes: List[List[float]] = []
-        visibilities: List[float] = []
+        frames: list[int] = []
+        bboxes: list[list[float]] = []
+        visibilities: list[float] = []
         for detection in detections:
             frame_id = safe_int(detection.get("frame"))
             bbox = detection.get("bbox")
-            if frame_id is None or not isinstance(bbox, (list, tuple)) or len(bbox) != 4:
+            if (
+                frame_id is None
+                or not isinstance(bbox, (list, tuple))
+                or len(bbox) != 4
+            ):
                 continue
             frames.append(frame_id)
             bboxes.append([float(component) for component in bbox])
@@ -280,7 +286,9 @@ def build_player_payload(
     return player_block
 
 
-def build_court_payload(court_lookup: Mapping[str, Any], game_id: str) -> Dict[str, Any]:
+def build_court_payload(
+    court_lookup: Mapping[str, Any], game_id: str
+) -> dict[str, Any]:
     """Return court payload for a game, filling defaults if missing.
 
     Args:
@@ -331,7 +339,7 @@ def build_court_payload(court_lookup: Mapping[str, Any], game_id: str) -> Dict[s
     }
 
 
-def convert_annotations(config: argparse.Namespace) -> Dict[str, Any]:
+def convert_annotations(config: argparse.Namespace) -> dict[str, Any]:
     """Perform the conversion and return the merged payload.
 
     Args:
@@ -345,13 +353,13 @@ def convert_annotations(config: argparse.Namespace) -> Dict[str, Any]:
     player_assignments = load_player_assignments(config.player_assignments)
     court_annotations = load_court_annotations(config.court_annotations)
 
-    games_payload: Dict[str, Any] = {}
+    games_payload: dict[str, Any] = {}
 
     for game_id, game_dir in iter_games_clips(config.data_root):
         if config.games and game_id not in config.games:
             continue
 
-        clips_payload: Dict[str, Any] = {}
+        clips_payload: dict[str, Any] = {}
         for clip_id, clip_dir in iter_clip_dirs(game_dir):
             if config.clips and clip_id not in config.clips:
                 continue
@@ -370,7 +378,7 @@ def convert_annotations(config: argparse.Namespace) -> Dict[str, Any]:
                 game_id,
                 clip_id,
             )
-            clip_payload: Dict[str, Any] = {
+            clip_payload: dict[str, Any] = {
                 "source": str(clip_dir.relative_to(config.data_root)),
                 "ball": ball_payload,
             }
@@ -386,7 +394,7 @@ def convert_annotations(config: argparse.Namespace) -> Dict[str, Any]:
             "clips": clips_payload,
         }
 
-    merged_payload: Dict[str, Any] = {
+    merged_payload: dict[str, Any] = {
         "schema_version": SCHEMA_VERSION,
         "generated_at": iso_timestamp(),
         "games": games_payload,

@@ -53,7 +53,9 @@ def heatmap_soft_argmax_coords(hm: torch.Tensor, beta: float = 100.0) -> torch.T
     return coords
 
 
-def l2_error(pred_xy: torch.Tensor, target_xy: torch.Tensor, visible: torch.Tensor) -> torch.Tensor:
+def l2_error(
+    pred_xy: torch.Tensor, target_xy: torch.Tensor, visible: torch.Tensor
+) -> torch.Tensor:
     """Compute mean L2 distance between predicted and target coordinates.
 
     Args:
@@ -72,7 +74,9 @@ def l2_error(pred_xy: torch.Tensor, target_xy: torch.Tensor, visible: torch.Tens
     return (dist * vis).sum() / denom
 
 
-def pck_at_r(pred_xy: torch.Tensor, target_xy: torch.Tensor, visible: torch.Tensor, r: float) -> torch.Tensor:
+def pck_at_r(
+    pred_xy: torch.Tensor, target_xy: torch.Tensor, visible: torch.Tensor, r: float
+) -> torch.Tensor:
     """Compute PCK@r in heatmap pixels.
 
     Args:
@@ -107,4 +111,3 @@ def visible_from_mask(mask: torch.Tensor) -> torch.Tensor:
     b = mask.shape[0]
     vis = (mask.view(b, -1).max(dim=1).values > 0).to(torch.int64)
     return vis
-

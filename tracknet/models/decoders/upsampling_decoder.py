@@ -20,7 +20,8 @@
 """
 
 from __future__ import annotations
-from typing import List, Optional, Sequence, Tuple
+
+from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
@@ -42,6 +43,7 @@ def _make_norm(c: int, kind: str) -> nn.Module:
 
 class SE(nn.Module):
     """Very small SE block (optional)."""
+
     def __init__(self, c: int, reduction: int = 8) -> None:
         super().__init__()
         r = max(1, c // reduction)
@@ -60,6 +62,7 @@ class SE(nn.Module):
 
 class ResidualDSBlock(nn.Module):
     """Depthwise-separable residual block: DW(3x3) -> Norm -> GELU -> PW(1x1)."""
+
     def __init__(
         self,
         c: int,
@@ -82,7 +85,14 @@ class ResidualDSBlock(nn.Module):
             raise ValueError(f"Unsupported activation: {activation}")
 
         # Depthwise 3x3（オフにすれば通常の3x3Conv）
-        self.dw = nn.Conv2d(c, c, kernel_size=3, padding=1, groups=(c if use_depthwise else 1), bias=False)
+        self.dw = nn.Conv2d(
+            c,
+            c,
+            kernel_size=3,
+            padding=1,
+            groups=(c if use_depthwise else 1),
+            bias=False,
+        )
         self.norm = _make_norm(c, norm)
         self.act = act
         # Pointwise 1x1
@@ -102,6 +112,7 @@ class ResidualDSBlock(nn.Module):
 
 class _Stage(nn.Module):
     """(optional upsample) -> channel projection -> N residual blocks."""
+
     def __init__(
         self,
         in_c: int,
@@ -116,7 +127,11 @@ class _Stage(nn.Module):
     ) -> None:
         super().__init__()
         # チャネルを合わせるための 1x1 プロジェクション
-        self.proj = nn.Conv2d(in_c, out_c, kernel_size=1, bias=False) if in_c != out_c else nn.Identity()
+        self.proj = (
+            nn.Conv2d(in_c, out_c, kernel_size=1, bias=False)
+            if in_c != out_c
+            else nn.Identity()
+        )
         # ブロック本体
         blocks = [
             ResidualDSBlock(
@@ -158,7 +173,7 @@ class UpsamplingDecoder(nn.Module):
         self,
         channels: Sequence[int],
         upsample: Sequence[int] | None = None,
-        out_size: Optional[Tuple[int, int]] = None,
+        out_size: tuple[int, int] | None = None,
         *,
         blocks_per_stage: int = 1,
         norm: str = "gn",
@@ -169,13 +184,15 @@ class UpsamplingDecoder(nn.Module):
         dropout: float = 0.0,
     ) -> None:
         super().__init__()
-        assert len(channels) >= 2, "channels must include input and at least one output stage"
+        assert (
+            len(channels) >= 2
+        ), "channels must include input and at least one output stage"
         self.channels = list(channels)
         num_stages = len(channels) - 1
 
         base = list(upsample) if upsample is not None else [2] * num_stages
         # upsample が短い場合は足りない分を 1 で埋める（=補間なし）
-        self.upsample: List[int] = base + [1] * max(0, num_stages - len(base))
+        self.upsample: list[int] = base + [1] * max(0, num_stages - len(base))
         self.out_size = out_size
 
         self.stages = nn.ModuleList(
@@ -221,9 +238,13 @@ class UpsamplingDecoder(nn.Module):
         # Progressive upsample → stage convs
         for i, factor in enumerate(self.upsample):
             if factor and factor != 1:
-                x = F.interpolate(x, scale_factor=factor, mode="bilinear", align_corners=False)
+                x = F.interpolate(
+                    x, scale_factor=factor, mode="bilinear", align_corners=False
+                )
             x = self.stages[i](x)
 
         if self.out_size is not None:
-            x = F.interpolate(x, size=self.out_size, mode="bilinear", align_corners=False)
+            x = F.interpolate(
+                x, size=self.out_size, mode="bilinear", align_corners=False
+            )
         return x

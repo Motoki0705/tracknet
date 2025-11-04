@@ -8,14 +8,14 @@ and validators.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Iterable, Mapping, MutableMapping
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import NamedTemporaryFile
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping
+from typing import Any
 
-import json
-from datetime import datetime, timezone
-
-COURT_KEYPOINTS: List[Dict[str, Any]] = [
+COURT_KEYPOINTS: list[dict[str, Any]] = [
     {"index": 0, "name": "far doubles corner left"},
     {"index": 1, "name": "far doubles corner right"},
     {"index": 2, "name": "near doubles corner left"},
@@ -34,7 +34,7 @@ COURT_KEYPOINTS: List[Dict[str, Any]] = [
 ]
 
 
-COURT_SKELETON_EDGES: List[List[int]] = [
+COURT_SKELETON_EDGES: list[list[int]] = [
     [1, 2],
     [3, 4],
     [1, 3],
@@ -54,7 +54,7 @@ def iso_timestamp() -> str:
         str: Timestamp string with timezone information.
     """
 
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def ensure_directory(path: Path) -> None:
@@ -93,7 +93,9 @@ def write_json_atomic(path: Path, data: Any) -> None:
     """
 
     ensure_directory(path)
-    with NamedTemporaryFile("w", encoding="utf-8", delete=False, dir=str(path.parent)) as tmp:
+    with NamedTemporaryFile(
+        "w", encoding="utf-8", delete=False, dir=str(path.parent)
+    ) as tmp:
         json.dump(data, tmp, indent=2, ensure_ascii=False)
         tmp.flush()
         tmp_path = Path(tmp.name)
@@ -115,7 +117,9 @@ def merge_nested_dict(
     """
 
     for key, value in source.items():
-        if isinstance(value, Mapping) and isinstance(destination.get(key), MutableMapping):
+        if isinstance(value, Mapping) and isinstance(
+            destination.get(key), MutableMapping
+        ):
             merge_nested_dict(destination[key], value)  # type: ignore[index]
         else:
             destination[key] = value
@@ -134,24 +138,24 @@ def iter_games_clips(base_dir: Path) -> Iterable[tuple[str, Path]]:
 
     if not base_dir.exists():
         return []
-    
+
     def extract_game_number(game_name: str) -> int:
         """Extract numeric part from game name (e.g., 'game1' -> 1)."""
         import re
-        match = re.search(r'game(\d+)', game_name.lower())
+
+        match = re.search(r"game(\d+)", game_name.lower())
         return int(match.group(1)) if match else 0
-    
+
     game_dirs = [
-        (child.name, child) 
-        for child in base_dir.iterdir() 
+        (child.name, child)
+        for child in base_dir.iterdir()
         if child.is_dir() and child.name.lower().startswith("game")
     ]
-    
+
     # Sort by numeric game number
     game_dirs.sort(key=lambda x: extract_game_number(x[0]))
-    
-    for game_id, game_path in game_dirs:
-        yield game_id, game_path
+
+    yield from game_dirs
 
 
 def iter_clip_dirs(game_dir: Path) -> Iterable[tuple[str, Path]]:
@@ -167,17 +171,13 @@ def iter_clip_dirs(game_dir: Path) -> Iterable[tuple[str, Path]]:
     def extract_clip_number(clip_name: str) -> int:
         """Extract numeric part from clip name (e.g., 'Clip1' -> 1, 'clip10' -> 10)."""
         import re
-        match = re.search(r'clip(\d+)', clip_name.lower())
+
+        match = re.search(r"clip(\d+)", clip_name.lower())
         return int(match.group(1)) if match else 0
-    
-    clip_dirs = [
-        (child.name, child) 
-        for child in game_dir.iterdir() 
-        if child.is_dir()
-    ]
-    
+
+    clip_dirs = [(child.name, child) for child in game_dir.iterdir() if child.is_dir()]
+
     # Sort by numeric clip number
     clip_dirs.sort(key=lambda x: extract_clip_number(x[0]))
-    
-    for clip_id, clip_path in clip_dirs:
-        yield clip_id, clip_path
+
+    yield from clip_dirs

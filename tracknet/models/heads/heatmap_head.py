@@ -29,4 +29,3 @@ class HeatmapHead(nn.Module):
         """
 
         return self.conv(x)
-

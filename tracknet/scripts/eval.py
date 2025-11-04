@@ -8,29 +8,33 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import List, Optional
 
 import torch
-from omegaconf import OmegaConf
 
-from tracknet.utils.config import add_config_cli_arguments, build_cfg
-from tracknet.training.trainer import Trainer
-from tracknet.training import (
-    HeatmapLossConfig, build_heatmap_loss,
-    heatmap_argmax_coords, visible_from_mask, l2_error, pck_at_r,
-)
 from tracknet.models import build_model
+from tracknet.training import (
+    HeatmapLossConfig,
+    build_heatmap_loss,
+    heatmap_argmax_coords,
+    l2_error,
+    pck_at_r,
+    visible_from_mask,
+)
+from tracknet.training.trainer import Trainer
+from tracknet.utils.config import add_config_cli_arguments, build_cfg
 
 
-def parse_args(argv: List[str]) -> tuple[argparse.Namespace, List[str]]:
+def parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     parser = argparse.ArgumentParser(description="TrackNet evaluation entrypoint")
     add_config_cli_arguments(parser)
-    parser.add_argument("--checkpoint", type=str, default=None, help="Path to checkpoint .pt file")
+    parser.add_argument(
+        "--checkpoint", type=str, default=None, help="Path to checkpoint .pt file"
+    )
     known, unknown = parser.parse_known_args(argv)
     return known, unknown
 
 
-def _find_best_ckpt(cfg) -> Optional[Path]:
+def _find_best_ckpt(cfg) -> Path | None:
     ckpt_dir = Path(cfg.runtime.ckpt_dir)
     if not ckpt_dir.exists():
         return None
@@ -38,8 +42,9 @@ def _find_best_ckpt(cfg) -> Optional[Path]:
     return cands[-1] if cands else None
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     import sys
+
     if argv is None:
         argv = sys.argv[1:]
 
@@ -65,7 +70,9 @@ def main(argv: List[str] | None = None) -> int:
     # Build model and loss
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = build_model(cfg.model).to(device)
-    loss = build_heatmap_loss(HeatmapLossConfig(name=str(cfg.training.get('loss', {}).get('name', 'mse'))))
+    loss = build_heatmap_loss(
+        HeatmapLossConfig(name=str(cfg.training.get("loss", {}).get("name", "mse")))
+    )
 
     # Load checkpoint
     ckpt_path = Path(args.checkpoint) if args.checkpoint else _find_best_ckpt(cfg)
@@ -77,11 +84,11 @@ def main(argv: List[str] | None = None) -> int:
         print("No checkpoint provided/found. Evaluating current weights.")
 
     # Precision handling (eval only)
-    prec = str(cfg.training.get('precision', 'fp32')).lower()
-    device_type = 'cuda' if torch.cuda.is_available() else 'cpu'
-    if prec == 'fp16' and device_type == 'cuda':
+    prec = str(cfg.training.get("precision", "fp32")).lower()
+    device_type = "cuda" if torch.cuda.is_available() else "cpu"
+    if prec == "fp16" and device_type == "cuda":
         autocast_dtype = torch.float16
-    elif prec == 'bf16':
+    elif prec == "bf16":
         autocast_dtype = torch.bfloat16
     else:
         autocast_dtype = None
@@ -101,6 +108,7 @@ def main(argv: List[str] | None = None) -> int:
                 ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
             else:
                 from contextlib import nullcontext
+
                 ctx = nullcontext()
             with ctx:
                 preds = model(images)

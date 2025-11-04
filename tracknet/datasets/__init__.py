@@ -11,14 +11,14 @@ Modules:
 
 from .base.image_dataset import BaseImageDataset, PreprocessConfig
 from .base.sequence_dataset import BaseSequenceDataset
-from .utils.augmentations import IMAGENET_MEAN, IMAGENET_STD
-from .utils.collate import (
-    gaussian_2d,
-    collate_frames,
-    collate_sequences,
-)
 from .tracknet_frame import TrackNetFrameDataset, TrackNetFrameDatasetConfig
 from .tracknet_sequence import TrackNetSequenceDataset, TrackNetSequenceDatasetConfig
+from .utils.augmentations import IMAGENET_MEAN, IMAGENET_STD
+from .utils.collate import (
+    collate_frames,
+    collate_sequences,
+    gaussian_2d,
+)
 
 __all__ = [
     "BaseImageDataset",

@@ -7,20 +7,19 @@ helpers to convert images to tensors with optional normalization.
 from __future__ import annotations
 
 import random
-from typing import Tuple
-
-from PIL import Image
-import torchvision.transforms.functional as F
-import torch
-
 from typing import Any
 
+import torch
+import torchvision.transforms.functional as F
+from PIL import Image
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
 IMAGENET_STD = [0.229, 0.224, 0.225]
 
 
-def _horizontal_flip(img: Image.Image, coord: Tuple[float, float]) -> tuple[Image.Image, Tuple[float, float]]:
+def _horizontal_flip(
+    img: Image.Image, coord: tuple[float, float]
+) -> tuple[Image.Image, tuple[float, float]]:
     """Flip image horizontally and update coordinate accordingly.
 
     Args:
@@ -39,7 +38,9 @@ def _horizontal_flip(img: Image.Image, coord: Tuple[float, float]) -> tuple[Imag
     return flipped, (float(new_x), float(y))
 
 
-def _resize(img: Image.Image, coord: Tuple[float, float], size: Tuple[int, int]) -> tuple[Image.Image, Tuple[float, float]]:
+def _resize(
+    img: Image.Image, coord: tuple[float, float], size: tuple[int, int]
+) -> tuple[Image.Image, tuple[float, float]]:
     """Resize image to ``size=(W, H)`` and scale the coordinate accordingly."""
 
     target_w, target_h = size
@@ -53,9 +54,9 @@ def _resize(img: Image.Image, coord: Tuple[float, float], size: Tuple[int, int])
 
 def apply_augmentations_single(
     img: Image.Image,
-    coord: Tuple[float, float],
+    coord: tuple[float, float],
     cfg: Any,
-) -> tuple[Image.Image, Tuple[float, float]]:
+) -> tuple[Image.Image, tuple[float, float]]:
     """Apply geometric augmentations to a single image/coord pair.
 
     Applies optional resize and probabilistic horizontal flip, keeping the

@@ -7,13 +7,15 @@ mask to exclude missing targets from contributing to the objective.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Literal
 
 import torch
 import torch.nn as nn
 
 
-def _reduce_with_mask(loss: torch.Tensor, mask: torch.Tensor, eps: float = 1e-8) -> torch.Tensor:
+def _reduce_with_mask(
+    loss: torch.Tensor, mask: torch.Tensor, eps: float = 1e-8
+) -> torch.Tensor:
     """Reduce a per-pixel loss using a visibility mask.
 
     Args:
@@ -40,7 +42,9 @@ class HeatmapMSELoss(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
         """Compute masked MSE loss.
 
         Args:
@@ -67,15 +71,17 @@ class HeatmapFocalLoss(nn.Module):
     def __init__(self, alpha: float = 2.0, beta: float = 4.0) -> None:
         """Initialize focal loss parameters.
 
-            alpha: Exponent for positive terms.
-            beta: Exponent for negative terms.
+        alpha: Exponent for positive terms.
+        beta: Exponent for negative terms.
         """
 
         super().__init__()
         self.alpha = float(alpha)
         self.beta = float(beta)
 
-    def forward(self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, pred: torch.Tensor, target: torch.Tensor, mask: torch.Tensor
+    ) -> torch.Tensor:
         """Compute masked focal-style heatmap loss.
 
         Args:
@@ -88,8 +94,14 @@ class HeatmapFocalLoss(nn.Module):
         """
 
         pred_sigmoid = pred.sigmoid().clamp(1e-6, 1 - 1e-6)
-        pos_loss = -((1 - pred_sigmoid) ** self.alpha) * torch.log(pred_sigmoid) * target
-        neg_loss = -((pred_sigmoid ** self.alpha) * ((1 - target) ** self.beta) * torch.log(1 - pred_sigmoid))
+        pos_loss = (
+            -((1 - pred_sigmoid) ** self.alpha) * torch.log(pred_sigmoid) * target
+        )
+        neg_loss = -(
+            (pred_sigmoid**self.alpha)
+            * ((1 - target) ** self.beta)
+            * torch.log(1 - pred_sigmoid)
+        )
         loss = pos_loss + (1 - target) * neg_loss
         return _reduce_with_mask(loss, mask)
 

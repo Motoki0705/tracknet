@@ -3,10 +3,16 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable, MutableMapping, Sequence
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, MutableMapping, Sequence
+from typing import Any
 
-from tracknet.tools.annotation_common import iso_timestamp, iter_games_clips, read_json, write_json_atomic
+from tracknet.tools.annotation_common import (
+    iso_timestamp,
+    iter_games_clips,
+    read_json,
+    write_json_atomic,
+)
 from tracknet.tools.utils.ui.court_annotation_form import CourtAnnotationForm
 
 
@@ -21,15 +27,28 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--data-root", type=Path, default=Path("data/tracknet"), help="Dataset root path.")
+    parser.add_argument(
+        "--data-root",
+        type=Path,
+        default=Path("data/tracknet"),
+        help="Dataset root path.",
+    )
     parser.add_argument(
         "--output",
         type=Path,
         default=Path("outputs/court_annotations/games.json"),
         help="Destination JSON file.",
     )
-    parser.add_argument("--games", nargs="*", help="Specific game identifiers to annotate (default: all available).")
-    parser.add_argument("--force", action="store_true", help="Overwrite existing entries without prompting.")
+    parser.add_argument(
+        "--games",
+        nargs="*",
+        help="Specific game identifiers to annotate (default: all available).",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite existing entries without prompting.",
+    )
     parser.add_argument(
         "--no-plot",
         action="store_true",
@@ -38,7 +57,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def discover_games(data_root: Path) -> List[str]:
+def discover_games(data_root: Path) -> list[str]:
     """Discover game identifiers from the dataset.
 
     Args:
@@ -55,7 +74,7 @@ def discover_games(data_root: Path) -> List[str]:
     return [f"game{idx}" for idx in range(1, 11)]
 
 
-def manage_court_annotations(args: argparse.Namespace) -> Dict[str, Any]:
+def manage_court_annotations(args: argparse.Namespace) -> dict[str, Any]:
     """Run the annotation workflow.
 
     Args:
@@ -67,15 +86,14 @@ def manage_court_annotations(args: argparse.Namespace) -> Dict[str, Any]:
 
     existing = read_json(args.output, default={})
     payload: MutableMapping[str, Any] = (
-        existing if isinstance(existing, MutableMapping) else {"version": "1.0.0", "games": {}}
+        existing
+        if isinstance(existing, MutableMapping)
+        else {"version": "1.0.0", "games": {}}
     )
     games_block: MutableMapping[str, Any] = payload.setdefault("games", {})
 
     target_games: Iterable[str]
-    if args.games:
-        target_games = args.games
-    else:
-        target_games = discover_games(args.data_root)
+    target_games = args.games or discover_games(args.data_root)
 
     form = CourtAnnotationForm(enable_plot=not args.no_plot)
     for game_id in target_games:

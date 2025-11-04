@@ -7,9 +7,10 @@ Lazily exposes symbols at package top-level to reduce import time.
 """
 
 from __future__ import annotations
-from typing import TYPE_CHECKING, Any, Dict
+
 import importlib
 import threading
+from typing import TYPE_CHECKING, Any, Dict
 
 __all__ = [
     # losses
@@ -33,31 +34,30 @@ __all__ = [
 ]
 
 # name -> "relative.module.path:attribute" mapping
-_lazy_specs: Dict[str, str] = {
+_lazy_specs: dict[str, str] = {
     # losses
-    "HeatmapMSELoss":       ".losses.heatmap_loss:HeatmapMSELoss",
-    "HeatmapFocalLoss":     ".losses.heatmap_loss:HeatmapFocalLoss",
-    "HeatmapLossConfig":    ".losses.heatmap_loss:HeatmapLossConfig",
-    "build_heatmap_loss":   ".losses.heatmap_loss:build_heatmap_loss",
-
+    "HeatmapMSELoss": ".losses.heatmap_loss:HeatmapMSELoss",
+    "HeatmapFocalLoss": ".losses.heatmap_loss:HeatmapFocalLoss",
+    "HeatmapLossConfig": ".losses.heatmap_loss:HeatmapLossConfig",
+    "build_heatmap_loss": ".losses.heatmap_loss:build_heatmap_loss",
     # metrics
-    "heatmap_argmax_coords":     ".metrics:heatmap_argmax_coords",
-    "heatmap_soft_argmax_coords":".metrics:heatmap_soft_argmax_coords",
-    "l2_error":                  ".metrics:l2_error",
-    "pck_at_r":                  ".metrics:pck_at_r",
-    "visible_from_mask":         ".metrics:visible_from_mask",
-
+    "heatmap_argmax_coords": ".metrics:heatmap_argmax_coords",
+    "heatmap_soft_argmax_coords": ".metrics:heatmap_soft_argmax_coords",
+    "l2_error": ".metrics:l2_error",
+    "pck_at_r": ".metrics:pck_at_r",
+    "visible_from_mask": ".metrics:visible_from_mask",
     # callbacks
-    "EarlyStopping":        ".callbacks.early_stopping:EarlyStopping",
-    "EarlyStoppingConfig":  ".callbacks.early_stopping:EarlyStoppingConfig",
-    "ModelCheckpoint":      ".callbacks.checkpoint:ModelCheckpoint",
-    "CheckpointConfig":     ".callbacks.checkpoint:CheckpointConfig",
-    "LRSchedulerCallback":  ".callbacks.lr_scheduler:LRSchedulerCallback",
-    "LRSchedulerConfig":    ".callbacks.lr_scheduler:LRSchedulerConfig",
+    "EarlyStopping": ".callbacks.early_stopping:EarlyStopping",
+    "EarlyStoppingConfig": ".callbacks.early_stopping:EarlyStoppingConfig",
+    "ModelCheckpoint": ".callbacks.checkpoint:ModelCheckpoint",
+    "CheckpointConfig": ".callbacks.checkpoint:CheckpointConfig",
+    "LRSchedulerCallback": ".callbacks.lr_scheduler:LRSchedulerCallback",
+    "LRSchedulerConfig": ".callbacks.lr_scheduler:LRSchedulerConfig",
 }
 
-_lazy_cache: Dict[str, Any] = {}
+_lazy_cache: dict[str, Any] = {}
 _lazy_lock = threading.RLock()
+
 
 def __getattr__(name: str) -> Any:
     # Return cached if already resolved
@@ -81,16 +81,21 @@ def __getattr__(name: str) -> Any:
         globals()[name] = obj  # Cache into module globals for subsequent direct access
         return obj
 
+
 def __dir__():
     # Better REPL/IDE experience
     return sorted(set(list(globals().keys()) + __all__))
 
+
 # Static type checkers / IDEs see the symbols without importing at runtime
 if TYPE_CHECKING:
+    from .callbacks.checkpoint import CheckpointConfig, ModelCheckpoint
+    from .callbacks.early_stopping import EarlyStopping, EarlyStoppingConfig
+    from .callbacks.lr_scheduler import LRSchedulerCallback, LRSchedulerConfig
     from .losses.heatmap_loss import (
-        HeatmapMSELoss,
         HeatmapFocalLoss,
         HeatmapLossConfig,
+        HeatmapMSELoss,
         build_heatmap_loss,
     )
     from .metrics import (
@@ -100,6 +105,3 @@ if TYPE_CHECKING:
         pck_at_r,
         visible_from_mask,
     )
-    from .callbacks.early_stopping import EarlyStopping, EarlyStoppingConfig
-    from .callbacks.checkpoint import ModelCheckpoint, CheckpointConfig
-    from .callbacks.lr_scheduler import LRSchedulerCallback, LRSchedulerConfig

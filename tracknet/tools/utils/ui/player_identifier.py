@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
+from typing import (
+    Any,
+)
 
 LOGGER = logging.getLogger("tracknet.player_identifier_ui")
 
@@ -16,13 +19,13 @@ class ClipContext:
 
     game_id: str
     clip_id: str
-    clip_data: Dict[str, Any]
-    assignment: Dict[str, Any] | None
+    clip_data: dict[str, Any]
+    assignment: dict[str, Any] | None
     frame_dir: Path | None = None
     media_source: Path | None = None
-    frame_paths: Dict[int, Path] = field(default_factory=dict)
-    frame_detections: Dict[int, Dict[str, Any]] = field(default_factory=dict)
-    preview_frame: Optional[int] = None
+    frame_paths: dict[int, Path] = field(default_factory=dict)
+    frame_detections: dict[int, dict[str, Any]] = field(default_factory=dict)
+    preview_frame: int | None = None
     preview_image: Any | None = None
 
     def __post_init__(self) -> None:
@@ -41,11 +44,11 @@ class PlayerIdentifierUI:
 
     def __init__(
         self,
-        clips: Sequence[Dict[str, Any]],
-        save_callback: Callable[[str, str, List[str]], None],
+        clips: Sequence[dict[str, Any]],
+        save_callback: Callable[[str, str, list[str]], None],
         roles: Iterable[str] = ("player_a", "player_b"),
     ) -> None:
-        self.clips: List[ClipContext] = [
+        self.clips: list[ClipContext] = [
             ClipContext(
                 game_id=entry["game_id"],
                 clip_id=entry["clip_id"],
@@ -67,8 +70,8 @@ class PlayerIdentifierUI:
         self.checkbox_axis = None
         self.status_label = None
         self.summary_axes = None
-        self.nav_buttons: Dict[str, Any] = {}
-        self._color_palette: Optional[List[Any]] = None
+        self.nav_buttons: dict[str, Any] = {}
+        self._color_palette: list[Any] | None = None
 
     # ------------------------------------------------------------------ public
     def launch(self) -> None:
@@ -105,10 +108,18 @@ class PlayerIdentifierUI:
         prev_axis = self.figure.add_axes([0.60, 0.12, 0.1, 0.08])
         quit_axis = self.figure.add_axes([0.05, 0.12, 0.1, 0.08])
 
-        self.nav_buttons["save"] = Button(save_axis, "Save", color="#4CAF50", hovercolor="#45a049")
-        self.nav_buttons["next"] = Button(next_axis, "→", color="#2196F3", hovercolor="#1e88e5")
-        self.nav_buttons["prev"] = Button(prev_axis, "←", color="#2196F3", hovercolor="#1e88e5")
-        self.nav_buttons["quit"] = Button(quit_axis, "Quit", color="#f44336", hovercolor="#e53935")
+        self.nav_buttons["save"] = Button(
+            save_axis, "Save", color="#4CAF50", hovercolor="#45a049"
+        )
+        self.nav_buttons["next"] = Button(
+            next_axis, "→", color="#2196F3", hovercolor="#1e88e5"
+        )
+        self.nav_buttons["prev"] = Button(
+            prev_axis, "←", color="#2196F3", hovercolor="#1e88e5"
+        )
+        self.nav_buttons["quit"] = Button(
+            quit_axis, "Quit", color="#f44336", hovercolor="#e53935"
+        )
 
         self.nav_buttons["save"].on_clicked(lambda _event: self._save_current())
         self.nav_buttons["next"].on_clicked(lambda _event: self._advance(1))
@@ -117,7 +128,9 @@ class PlayerIdentifierUI:
 
         status_axis = self.figure.add_axes([0.25, 0.04, 0.5, 0.06])
         status_axis.axis("off")
-        self.status_label = status_axis.text(0.5, 0.5, "", ha="center", va="center", fontsize=10)
+        self.status_label = status_axis.text(
+            0.5, 0.5, "", ha="center", va="center", fontsize=10
+        )
 
         self._render_current_clip()
         plt.show()
@@ -149,7 +162,9 @@ class PlayerIdentifierUI:
         total = len(self.clips)
         self.current_index = (self.current_index + step) % total
         self._render_current_clip()
-        self._update_status(f"Moved to clip {self.current_index + 1}/{total}.", level="info")
+        self._update_status(
+            f"Moved to clip {self.current_index + 1}/{total}.", level="info"
+        )
 
     def _save_current(self) -> None:
         """Persist the current selection via the save callback."""
@@ -158,7 +173,8 @@ class PlayerIdentifierUI:
         selections = self._current_selection()
         if len(selections) < len(self.roles):
             self._update_status(
-                f"Select at least {len(self.roles)} tracks before saving.", level="warning"
+                f"Select at least {len(self.roles)} tracks before saving.",
+                level="warning",
             )
             return
         try:
@@ -182,7 +198,7 @@ class PlayerIdentifierUI:
         plt.close(self.figure)
 
     # ------------------------------------------------------------------ helpers
-    def _current_labels(self) -> tuple[List[str], List[bool]]:
+    def _current_labels(self) -> tuple[list[str], list[bool]]:
         """Return checkbox labels and initial selection states."""
 
         context = self.clips[self.current_index]
@@ -196,25 +212,33 @@ class PlayerIdentifierUI:
         selected = [track_id in existing_selection for track_id in labels]
         return labels, selected
 
-    def _current_selection(self) -> List[str]:
+    def _current_selection(self) -> list[str]:
         """Return the currently selected track identifiers."""
 
         if not self.track_checkboxes:
             return []
         return [
             label.get_text()
-            for label, state in zip(self.track_checkboxes.labels, self.track_checkboxes.get_status())
+            for label, state in zip(
+                self.track_checkboxes.labels,
+                self.track_checkboxes.get_status(),
+                strict=False,
+            )
             if state
         ]
 
-    def _existing_selection(self, context: ClipContext) -> List[str]:
+    def _existing_selection(self, context: ClipContext) -> list[str]:
         """Resolve previously saved selections for ``context``."""
 
         if context.assignment:
             if "selected_tracks" in context.assignment:
                 return list(context.assignment["selected_tracks"])
             players = context.assignment.get("players", {})
-            return [player.get("track_id") for player in players.values() if player.get("track_id")]
+            return [
+                player.get("track_id")
+                for player in players.values()
+                if player.get("track_id")
+            ]
         return []
 
     def _render_current_clip(self) -> None:
@@ -226,17 +250,25 @@ class PlayerIdentifierUI:
             self.checkbox_axis.set_title("Tracks")
             from matplotlib.widgets import CheckButtons
 
-            self.track_checkboxes = CheckButtons(self.checkbox_axis, labels, selected_states)
+            self.track_checkboxes = CheckButtons(
+                self.checkbox_axis, labels, selected_states
+            )
             self.track_checkboxes.on_clicked(self._on_checkbox_changed)
 
-        selected_ids = {label for label, state in zip(labels, selected_states) if state}
+        selected_ids = {
+            label
+            for label, state in zip(labels, selected_states, strict=False)
+            if state
+        }
         context = self.clips[self.current_index]
         self._render_preview(context, selected_ids)
         self._render_summary(context, selected_ids)
         if self.figure:
             self.figure.canvas.draw_idle()
 
-    def _render_preview(self, context: ClipContext, selected_ids: Iterable[str]) -> None:
+    def _render_preview(
+        self, context: ClipContext, selected_ids: Iterable[str]
+    ) -> None:
         """Render an image preview with track overlays for ``context``.
 
         Args:
@@ -265,7 +297,9 @@ class PlayerIdentifierUI:
 
         self.preview_axes.imshow(image)
         if frame_index is not None:
-            self.preview_axes.set_title(f"{context.game_id}/{context.clip_id} – frame {frame_index}")
+            self.preview_axes.set_title(
+                f"{context.game_id}/{context.clip_id} – frame {frame_index}"
+            )
         detections = self._detections_for_frame(context, frame_index)
         if detections:
             from matplotlib import patches
@@ -293,13 +327,20 @@ class PlayerIdentifierUI:
                     f"ID {track_id}",
                     color=color,
                     fontsize=8,
-                    bbox={"facecolor": "black", "alpha": 0.45, "pad": 1.0, "edgecolor": "none"},
+                    bbox={
+                        "facecolor": "black",
+                        "alpha": 0.45,
+                        "pad": 1.0,
+                        "edgecolor": "none",
+                    },
                 )
         height, width = image.shape[0], image.shape[1]
         self.preview_axes.set_xlim(0, width)
         self.preview_axes.set_ylim(height, 0)
 
-    def _render_summary(self, context: ClipContext, selected_ids: Iterable[str]) -> None:
+    def _render_summary(
+        self, context: ClipContext, selected_ids: Iterable[str]
+    ) -> None:
         """Render textual summary metrics for ``context``.
 
         Args:
@@ -361,7 +402,7 @@ class PlayerIdentifierUI:
         if self.figure:
             self.figure.canvas.draw_idle()
 
-    def _sorted_track_ids(self, track_ids: Iterable[Any]) -> List[str]:
+    def _sorted_track_ids(self, track_ids: Iterable[Any]) -> list[str]:
         """Return identifiers sorted numerically when possible.
 
         Args:
@@ -371,7 +412,7 @@ class PlayerIdentifierUI:
             List[str]: Sorted track identifiers as strings.
         """
 
-        def sort_key(value: str) -> Tuple[int, Any]:
+        def sort_key(value: str) -> tuple[int, Any]:
             try:
                 return (0, int(value))
             except ValueError:
@@ -382,7 +423,7 @@ class PlayerIdentifierUI:
     def _detections_for_frame(
         self,
         context: ClipContext,
-        frame_index: Optional[int],
+        frame_index: int | None,
     ) -> Mapping[str, Mapping[str, Any]]:
         """Return detections present on ``frame_index`` for ``context``.
 
@@ -399,7 +440,7 @@ class PlayerIdentifierUI:
         detections = self._ensure_frame_detections(context)
         return detections.get(int(frame_index), {})
 
-    def _resolve_preview_frame(self, context: ClipContext) -> Optional[int]:
+    def _resolve_preview_frame(self, context: ClipContext) -> int | None:
         """Choose a representative frame number for ``context``.
 
         Args:
@@ -415,11 +456,15 @@ class PlayerIdentifierUI:
         if not frame_detections:
             context.preview_frame = None
             return None
-        best_frame, _ = max(frame_detections.items(), key=lambda item: (len(item[1]), -item[0]))
+        best_frame, _ = max(
+            frame_detections.items(), key=lambda item: (len(item[1]), -item[0])
+        )
         context.preview_frame = best_frame
         return best_frame
 
-    def _ensure_frame_detections(self, context: ClipContext) -> Dict[int, Dict[str, Dict[str, Any]]]:
+    def _ensure_frame_detections(
+        self, context: ClipContext
+    ) -> dict[int, dict[str, dict[str, Any]]]:
         """Index detections by frame for faster lookup.
 
         Args:
@@ -431,7 +476,7 @@ class PlayerIdentifierUI:
 
         if context.frame_detections:
             return context.frame_detections
-        frame_index: Dict[int, Dict[str, Dict[str, Any]]] = {}
+        frame_index: dict[int, dict[str, dict[str, Any]]] = {}
         tracks = context.clip_data.get("tracks", {})
         for raw_track_id, track in tracks.items():
             track_id = str(raw_track_id)
@@ -448,7 +493,7 @@ class PlayerIdentifierUI:
         context.frame_detections = frame_index
         return frame_index
 
-    def _ensure_frame_map(self, context: ClipContext) -> Dict[int, Path]:
+    def _ensure_frame_map(self, context: ClipContext) -> dict[int, Path]:
         """Cache a mapping of frame numbers to image paths for ``context``.
 
         Args:
@@ -463,7 +508,7 @@ class PlayerIdentifierUI:
         if not context.frame_dir or not context.frame_dir.is_dir():
             return {}
 
-        def sort_key(path: Path) -> Tuple[int, str]:
+        def sort_key(path: Path) -> tuple[int, str]:
             try:
                 return (0, int(path.stem))
             except ValueError:
@@ -479,7 +524,9 @@ class PlayerIdentifierUI:
             context.frame_paths[frame_number] = entry
         return context.frame_paths
 
-    def _resolve_frame_path(self, context: ClipContext, frame_index: Optional[int]) -> Optional[Path]:
+    def _resolve_frame_path(
+        self, context: ClipContext, frame_index: int | None
+    ) -> Path | None:
         """Resolve the best available frame path for the requested frame.
 
         Args:
@@ -497,10 +544,14 @@ class PlayerIdentifierUI:
             return None
         if frame_index in frame_map:
             return frame_map[frame_index]
-        nearest = min(frame_map.keys(), key=lambda candidate: abs(candidate - frame_index))
+        nearest = min(
+            frame_map.keys(), key=lambda candidate: abs(candidate - frame_index)
+        )
         return frame_map.get(nearest)
 
-    def _load_preview_image(self, context: ClipContext, frame_index: Optional[int]) -> Any | None:
+    def _load_preview_image(
+        self, context: ClipContext, frame_index: int | None
+    ) -> Any | None:
         """Load and cache the preview image for ``frame_index``.
 
         Args:
@@ -548,7 +599,9 @@ class PlayerIdentifierUI:
         try:
             import cv2
         except ImportError:  # pragma: no cover - optional dependency
-            LOGGER.debug("OpenCV not available; cannot render video preview for %s", source)
+            LOGGER.debug(
+                "OpenCV not available; cannot render video preview for %s", source
+            )
             return None
 
         capture = cv2.VideoCapture(str(source))
