@@ -8,4 +8,3 @@ Attributes:
 """
 
 DEFAULT_PRETRAINED_MODEL: str = "facebook/dinov3-vitb16-pretrain-lvd1689m"
-

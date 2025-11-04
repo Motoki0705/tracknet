@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import getpass
-import json
 import logging
+from collections.abc import Callable, Iterable, Mapping, MutableMapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Mapping, MutableMapping, Sequence
+from typing import (
+    Any,
+)
 
 import numpy as np
 
@@ -49,8 +51,15 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """
 
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mode", choices=["detect", "assign"], required=True, help="Operating mode.")
-    parser.add_argument("--data-root", type=Path, default=Path("data/tracknet"), help="Dataset root directory.")
+    parser.add_argument(
+        "--mode", choices=["detect", "assign"], required=True, help="Operating mode."
+    )
+    parser.add_argument(
+        "--data-root",
+        type=Path,
+        default=Path("data/tracknet"),
+        help="Dataset root directory.",
+    )
     parser.add_argument(
         "--person-tracks",
         type=Path,
@@ -69,10 +78,22 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=Path("data/tracknet/annotations.json"),
         help="Unified annotation file updated incrementally after assignments.",
     )
-    parser.add_argument("--games", nargs="*", help="Filter to specific games (default: all).")
-    parser.add_argument("--clips", nargs="*", help="Filter to specific clips (default: all).")
-    parser.add_argument("--force", action="store_true", help="Rerun detection even when cached results exist.")
-    parser.add_argument("--dry-run", action="store_true", help="Skip writing files; useful for validation.")
+    parser.add_argument(
+        "--games", nargs="*", help="Filter to specific games (default: all)."
+    )
+    parser.add_argument(
+        "--clips", nargs="*", help="Filter to specific clips (default: all)."
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rerun detection even when cached results exist.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Skip writing files; useful for validation.",
+    )
     parser.add_argument(
         "--video-ext",
         nargs="*",
@@ -105,7 +126,7 @@ def default_tracker_factory() -> Any:
     return DefaultTracker()
 
 
-def convert_bbox_xyxy_to_xywh(box: Sequence[float]) -> List[float]:
+def convert_bbox_xyxy_to_xywh(box: Sequence[float]) -> list[float]:
     """Convert ``[x1, y1, x2, y2]`` to ``[x, y, w, h]``.
 
     Args:
@@ -119,7 +140,9 @@ def convert_bbox_xyxy_to_xywh(box: Sequence[float]) -> List[float]:
     return [x1, y1, max(0.0, x2 - x1), max(0.0, y2 - y1)]
 
 
-def summary_from_detections(detections: List[Dict[str, Any]], total_frames: int) -> Dict[str, Any]:
+def summary_from_detections(
+    detections: list[dict[str, Any]], total_frames: int
+) -> dict[str, Any]:
     """Generate summary statistics for a track.
 
     Args:
@@ -135,7 +158,7 @@ def summary_from_detections(detections: List[Dict[str, Any]], total_frames: int)
     frames_observed = len(detections)
     widths = [det["bbox"][2] for det in detections if det.get("bbox")]
     heights = [det["bbox"][3] for det in detections if det.get("bbox")]
-    area = [w * h for w, h in zip(widths, heights)]
+    area = [w * h for w, h in zip(widths, heights, strict=False)]
     avg_area = float(np.mean(area)) if area else 0.0
     return {
         "frames": frames_observed,
@@ -169,7 +192,7 @@ class PlayerTrackerApp:
         self.player_assignments_path = args.player_assignments
         self.annotations_path = args.annotations
         self.tracker_factory = tracker_factory or default_tracker_factory
-        self._temp_videos: List[str] = []  # Track temporary videos for cleanup
+        self._temp_videos: list[str] = []  # Track temporary videos for cleanup
         logging.basicConfig(level=getattr(logging, args.log_level))
 
     # --------------------------------------------------------------------- detect
@@ -202,14 +225,20 @@ class PlayerTrackerApp:
             if config.games and game_id not in config.games:
                 continue
 
-            game_record: MutableMapping[str, Any] = games_block.setdefault(game_id, {"clips": {}})
+            game_record: MutableMapping[str, Any] = games_block.setdefault(
+                game_id, {"clips": {}}
+            )
             clips_block: MutableMapping[str, Any] = game_record.setdefault("clips", {})
 
             for clip_id, clip_dir in iter_clip_dirs(game_dir):
                 if config.clips and clip_id not in config.clips:
                     continue
                 if not config.force and clip_id in clips_block:
-                    LOGGER.info("Skipping %s/%s (cached). Use --force to recompute.", game_id, clip_id)
+                    LOGGER.info(
+                        "Skipping %s/%s (cached). Use --force to recompute.",
+                        game_id,
+                        clip_id,
+                    )
                     continue
 
                 video_path = self._find_video_path(clip_dir, config.video_exts)
@@ -218,7 +247,9 @@ class PlayerTrackerApp:
                     continue
                 LOGGER.info("Tracking %s/%s via %s", game_id, clip_id, video_path)
                 track_history = tracker.track(str(video_path))
-                clips_block[clip_id] = self._build_clip_from_history(track_history, str(video_path))
+                clips_block[clip_id] = self._build_clip_from_history(
+                    track_history, str(video_path)
+                )
                 processed += 1
 
         if processed == 0:
@@ -228,14 +259,14 @@ class PlayerTrackerApp:
 
         if not self.args.dry_run:
             write_json_atomic(self.person_tracks_path, meta)
-        
+
         # Clean up temporary videos
         self._cleanup_temp_videos()
 
     def _cleanup_temp_videos(self) -> None:
         """Clean up any temporary videos generated during processing."""
         import os
-        
+
         for temp_video in self._temp_videos:
             try:
                 if os.path.exists(temp_video):
@@ -261,7 +292,9 @@ class PlayerTrackerApp:
 
         assignments = load_player_assignments(self.player_assignments_path)
         assignments_meta = assignments.get("meta") or {"version": "1.0.0", "games": {}}
-        assignments_games: MutableMapping[str, Any] = assignments_meta.setdefault("games", {})
+        assignments_games: MutableMapping[str, Any] = assignments_meta.setdefault(
+            "games", {}
+        )
 
         annotation_cache = read_json(self.annotations_path, default=None)
         if isinstance(annotation_cache, MutableMapping):
@@ -288,7 +321,9 @@ class PlayerTrackerApp:
             clips_meta = game_meta.get("clips", {})
             if not isinstance(clips_meta, MutableMapping):
                 clips_meta = {}
-            clip_entry: MutableMapping[str, Any] | Dict[str, Any] = clips_meta.get(clip_id, {})
+            clip_entry: MutableMapping[str, Any] | dict[str, Any] = clips_meta.get(
+                clip_id, {}
+            )
             if not isinstance(clip_entry, MutableMapping):
                 clip_entry = {}
             if not clip_entry.get("tracks") and track_index:
@@ -316,13 +351,19 @@ class PlayerTrackerApp:
             LOGGER.warning("No clips match the requested filters.")
             return
 
-        def on_save(game_id: str, clip_id: str, selected_tracks: List[str]) -> None:
-            LOGGER.info("Saving assignment for %s/%s: %s", game_id, clip_id, selected_tracks)
-            game_block: MutableMapping[str, Any] = assignments_games.setdefault(game_id, {"clips": {}})
+        def on_save(game_id: str, clip_id: str, selected_tracks: list[str]) -> None:
+            LOGGER.info(
+                "Saving assignment for %s/%s: %s", game_id, clip_id, selected_tracks
+            )
+            game_block: MutableMapping[str, Any] = assignments_games.setdefault(
+                game_id, {"clips": {}}
+            )
             clips_block: MutableMapping[str, Any] = game_block.setdefault("clips", {})
             clips_block[clip_id] = {
                 "source": person_tracks["index"][game_id][clip_id].get("source"),
-                "players": self._build_players_from_selection(game_id, clip_id, selected_tracks, person_tracks),
+                "players": self._build_players_from_selection(
+                    game_id, clip_id, selected_tracks, person_tracks
+                ),
                 "selected_tracks": selected_tracks,
                 "assigned_by": getpass.getuser(),
                 "last_reviewed": iso_timestamp(),
@@ -338,7 +379,13 @@ class PlayerTrackerApp:
                 clip_id,
                 {
                     "source": person_tracks["index"][game_id][clip_id].get("source"),
-                    "ball": {"frames": [], "x": [], "y": [], "visibility": [], "status": []},
+                    "ball": {
+                        "frames": [],
+                        "x": [],
+                        "y": [],
+                        "visibility": [],
+                        "status": [],
+                    },
                 },
             )
             clip_entry["players"] = self._build_players_from_selection(
@@ -360,7 +407,7 @@ class PlayerTrackerApp:
     def _filtered_clip_keys(
         self,
         index: Mapping[str, Mapping[str, Any]],
-    ) -> List[tuple[str, str]]:
+    ) -> list[tuple[str, str]]:
         """Return filtered ``(game, clip)`` pairs.
 
         Args:
@@ -370,19 +417,21 @@ class PlayerTrackerApp:
             List[Tuple[str, str]]: Filtered identifiers respecting CLI args.
         """
 
-        result: List[tuple[str, str]] = []
+        result: list[tuple[str, str]] = []
         games_filter = set(self.args.games) if self.args.games else None
         clips_filter = set(self.args.clips) if self.args.clips else None
         for game_id, clips in index.items():
             if games_filter and game_id not in games_filter:
                 continue
-            for clip_id in clips.keys():
+            for clip_id in clips:
                 if clips_filter and clip_id not in clips_filter:
                     continue
                 result.append((game_id, clip_id))
         return result
 
-    def _find_video_path(self, clip_dir: Path, extensions: Sequence[str]) -> Path | None:
+    def _find_video_path(
+        self, clip_dir: Path, extensions: Sequence[str]
+    ) -> Path | None:
         """Locate a video inside ``clip_dir`` or generate from frame sequence.
 
         Args:
@@ -396,14 +445,18 @@ class PlayerTrackerApp:
         for candidate in sorted(clip_dir.iterdir()):
             if candidate.suffix.lower() in extensions and candidate.is_file():
                 return candidate
-        
+
         # If no video found, check for frame sequence and generate video
         is_valid, issues = validate_frame_sequence(clip_dir)
         if is_valid:
-            LOGGER.info("No video found in %s, generating from frame sequence", clip_dir)
+            LOGGER.info(
+                "No video found in %s, generating from frame sequence", clip_dir
+            )
             try:
                 # Generate video without automatic cleanup
-                with generate_video_from_frames(clip_dir, cleanup=False) as temp_video_path:
+                with generate_video_from_frames(
+                    clip_dir, cleanup=False
+                ) as temp_video_path:
                     if temp_video_path:
                         # Store the path for cleanup later
                         self._temp_videos.append(temp_video_path)
@@ -415,11 +468,15 @@ class PlayerTrackerApp:
                 LOGGER.error(f"Failed to generate video from frames in {clip_dir}: {e}")
                 return None
         else:
-            LOGGER.debug("Frame sequence validation failed for %s: %s", clip_dir, issues)
-            
+            LOGGER.debug(
+                "Frame sequence validation failed for %s: %s", clip_dir, issues
+            )
+
         return None
 
-    def _build_clip_from_history(self, history: List[List[Dict[str, Any]]], source: str) -> Dict[str, Any]:
+    def _build_clip_from_history(
+        self, history: list[list[dict[str, Any]]], source: str
+    ) -> dict[str, Any]:
         """Convert tracker history into serialisable clip payload.
 
         Args:
@@ -430,7 +487,7 @@ class PlayerTrackerApp:
             Dict[str, Any]: Clip payload ready for JSON serialisation.
         """
 
-        tracks: Dict[str, Dict[str, Any]] = {}
+        tracks: dict[str, dict[str, Any]] = {}
         for frame_id, detections in enumerate(history):
             for det in detections:
                 track_id = str(det.get("id"))
@@ -443,7 +500,11 @@ class PlayerTrackerApp:
                 xywh = convert_bbox_xyxy_to_xywh(bbox)
                 entry = tracks.setdefault(
                     track_id,
-                    {"label": det.get("label", "person"), "detections": [], "summary": {}},
+                    {
+                        "label": det.get("label", "person"),
+                        "detections": [],
+                        "summary": {},
+                    },
                 )
                 entry["detections"].append(
                     {
@@ -453,8 +514,10 @@ class PlayerTrackerApp:
                         "visibility": float(det.get("visibility", 1.0)),
                     }
                 )
-        for track_id, track in tracks.items():
-            track["summary"] = summary_from_detections(track["detections"], total_frames=len(history))
+        for _track_id, track in tracks.items():
+            track["summary"] = summary_from_detections(
+                track["detections"], total_frames=len(history)
+            )
         return {
             "source": source,
             "frames": len(history),
@@ -465,11 +528,11 @@ class PlayerTrackerApp:
         self,
         game_id: str,
         clip_id: str,
-        selected_tracks: List[str],
+        selected_tracks: list[str],
         person_tracks: Mapping[str, Any],
         *,
         as_sequences: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """Build player payload for assignments or annotation cache.
 
         Args:
@@ -492,8 +555,14 @@ class PlayerTrackerApp:
                 game_id: {
                     clip_id: {
                         "players": {
-                            "player_a": {"track_id": selected_tracks[0], "assigned_by": getpass.getuser()},
-                            "player_b": {"track_id": selected_tracks[1], "assigned_by": getpass.getuser()},
+                            "player_a": {
+                                "track_id": selected_tracks[0],
+                                "assigned_by": getpass.getuser(),
+                            },
+                            "player_b": {
+                                "track_id": selected_tracks[1],
+                                "assigned_by": getpass.getuser(),
+                            },
                         }
                     }
                 }

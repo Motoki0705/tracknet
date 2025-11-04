@@ -10,7 +10,6 @@ from typing import Literal
 
 import torch
 
-
 When = Literal["epoch", "batch"]
 
 
@@ -28,7 +27,9 @@ class LRSchedulerConfig:
 class LRSchedulerCallback:
     """Minimal wrapper to step a scheduler based on a configured cadence."""
 
-    def __init__(self, scheduler: torch.optim.lr_scheduler._LRScheduler, cfg: LRSchedulerConfig) -> None:  # type: ignore[attr-defined]
+    def __init__(
+        self, scheduler: torch.optim.lr_scheduler._LRScheduler, cfg: LRSchedulerConfig
+    ) -> None:  # type: ignore[attr-defined]
         self.scheduler = scheduler
         self.cfg = cfg
 
@@ -55,4 +56,3 @@ class LRSchedulerCallback:
                     self.scheduler.step()
             except TypeError:
                 self.scheduler.step()
-

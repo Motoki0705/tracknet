@@ -10,15 +10,14 @@ import contextlib
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Optional
 
-import torch
 import pytorch_lightning as pl
+import torch
 from omegaconf import DictConfig
 
 from tracknet.models import build_model
 from tracknet.training import HeatmapLossConfig, build_heatmap_loss
-from tracknet.utils.logging import save_image_from_tensor, save_overlay_from_tensor
+from tracknet.utils.logging import save_overlay_from_tensor
 
 
 @dataclass
@@ -46,18 +45,36 @@ class PLHeatmapModule(pl.LightningModule):
 
         # Loss
         tcfg = cfg.training
-        lname = str(tcfg.get("loss", {}).get("name", "mse")) if hasattr(tcfg, "loss") else "mse"
-        alpha = float(tcfg.get("loss", {}).get("alpha", 2.0)) if hasattr(tcfg, "loss") else 2.0
-        beta = float(tcfg.get("loss", {}).get("beta", 4.0)) if hasattr(tcfg, "loss") else 4.0
-        self.criterion = build_heatmap_loss(HeatmapLossConfig(name=lname, alpha=alpha, beta=beta))
+        lname = (
+            str(tcfg.get("loss", {}).get("name", "mse"))
+            if hasattr(tcfg, "loss")
+            else "mse"
+        )
+        alpha = (
+            float(tcfg.get("loss", {}).get("alpha", 2.0))
+            if hasattr(tcfg, "loss")
+            else 2.0
+        )
+        beta = (
+            float(tcfg.get("loss", {}).get("beta", 4.0))
+            if hasattr(tcfg, "loss")
+            else 4.0
+        )
+        self.criterion = build_heatmap_loss(
+            HeatmapLossConfig(name=lname, alpha=alpha, beta=beta)
+        )
 
         # Freeze schedule: freeze backbone for the first N epochs, then unfreeze
-        self._freeze_epochs: int = int(self.cfg.training.get("backbone_freeze_epochs", 0))
+        self._freeze_epochs: int = int(
+            self.cfg.training.get("backbone_freeze_epochs", 0)
+        )
         # Detect current frozen state (may be frozen by model config or by us below)
         self._backbone_frozen: bool = False
         try:
             if hasattr(self.model, "backbone"):
-                self._backbone_frozen = any((not p.requires_grad) for p in self.model.backbone.parameters())
+                self._backbone_frozen = any(
+                    (not p.requires_grad) for p in self.model.backbone.parameters()
+                )
         except Exception:
             self._backbone_frozen = False
 
@@ -76,17 +93,19 @@ class PLHeatmapModule(pl.LightningModule):
         self._clip_norm: float = float(tcfg.get("grad_clip_norm", 0.0))
 
         # ランタイムに決まる"現在のマイクロバッチサイズ"（OOM後に確定）
-        self._runtime_mb: Optional[int] = None
+        self._runtime_mb: int | None = None
 
         # 以降は手動最適化で統一（通常時は1チャンク=元バッチと同義）
         self.automatic_optimization = False
         self._preview_saved_epoch: int = -1
 
-    def forward(self, images: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
         return self.model(images)
 
     # -------------------------- Training --------------------------
-    def training_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore[override]
+    def training_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:
         opt = self.optimizers()
         if isinstance(opt, (list, tuple)):
             opt = opt[0]
@@ -108,7 +127,9 @@ class PLHeatmapModule(pl.LightningModule):
 
         # 2) まずは"分割なし"（mb=B）で試す → OOMなら自動で縮めて再試行
         try:
-            loss = self._run_micro_batches(opt, images, targets, masks, B)  # 等価に1回更新
+            loss = self._run_micro_batches(
+                opt, images, targets, masks, B
+            )  # 等価に1回更新
             if self._auto_mb:
                 self._runtime_mb = B  # 余裕があることを記録
             return loss
@@ -126,7 +147,11 @@ class PLHeatmapModule(pl.LightningModule):
                 self._runtime_mb = mb  # 成功サイズを記録（以後も使用）
                 return loss
             except RuntimeError as e:
-                if "out of memory" not in str(e).lower() or retries <= 0 or mb <= self._min_mb:
+                if (
+                    "out of memory" not in str(e).lower()
+                    or retries <= 0
+                    or mb <= self._min_mb
+                ):
                     raise
                 self._handle_oom(opt)
                 mb = max(self._min_mb, mb // self._backoff)
@@ -143,9 +168,9 @@ class PLHeatmapModule(pl.LightningModule):
         cm = cm() if callable(cm) else contextlib.nullcontext()
 
         for i in range(0, B, mb):
-            xb = images[i:i+mb]
-            yb = targets[i:i+mb]
-            mbb = masks[i:i+mb]
+            xb = images[i : i + mb]
+            yb = targets[i : i + mb]
+            mbb = masks[i : i + mb]
             with cm:
                 out = self(xb)
                 loss_mb = self.criterion(out, yb, mbb) / num_micro
@@ -153,11 +178,19 @@ class PLHeatmapModule(pl.LightningModule):
                 total_loss += loss_mb.detach()
 
         if self._clip_norm and self._clip_norm > 0:
-            self.clip_gradients(opt, gradient_clip_val=self._clip_norm, gradient_clip_algorithm="norm")
+            self.clip_gradients(
+                opt, gradient_clip_val=self._clip_norm, gradient_clip_algorithm="norm"
+            )
 
         opt.step()
-        self.log("train/loss", total_loss, on_step=True, on_epoch=True,
-                 prog_bar=True, batch_size=B)
+        self.log(
+            "train/loss",
+            total_loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            batch_size=B,
+        )
         return total_loss
 
     def _handle_oom(self, opt) -> None:
@@ -169,7 +202,9 @@ class PLHeatmapModule(pl.LightningModule):
             torch.cuda.ipc_collect()
 
     # -------------------------- Validation（必要なら同様に自動分割） --------------------------
-    def validation_step(self, batch: Dict[str, torch.Tensor], batch_idx: int) -> Optional[torch.Tensor]:  # type: ignore[override]
+    def validation_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor | None:
         images, targets, masks = batch["images"], batch["heatmaps"], batch["masks"]
         B = images.size(0)
 
@@ -184,11 +219,15 @@ class PLHeatmapModule(pl.LightningModule):
             mb = max(self._min_mb, (self._runtime_mb or B) // self._backoff)
             total = images.new_tensor(0.0)
             for i in range(0, B, mb):
-                out = self(images[i:i+mb])
-                total += self.criterion(out, targets[i:i+mb], masks[i:i+mb]).detach()
+                out = self(images[i : i + mb])
+                total += self.criterion(
+                    out, targets[i : i + mb], masks[i : i + mb]
+                ).detach()
             loss = total / math.ceil(B / mb)
 
-        self.log("val/loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=B)
+        self.log(
+            "val/loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=B
+        )
 
         if batch_idx == 0 and self.current_epoch != self._preview_saved_epoch:
             try:
@@ -200,7 +239,7 @@ class PLHeatmapModule(pl.LightningModule):
         return loss
 
     # -------------------------- Optimizer / Scheduler --------------------------
-    def configure_optimizers(self):  # type: ignore[override]
+    def configure_optimizers(self):
         ocfg = self.cfg.training.optimizer
         name = str(ocfg.get("name", "adamw")).lower()
         lr = float(ocfg.get("lr", 5e-4))
@@ -213,7 +252,9 @@ class PLHeatmapModule(pl.LightningModule):
             optimizer = torch.optim.AdamW(params, lr=lr, weight_decay=wd)
         elif name == "sgd":
             momentum = float(ocfg.get("momentum", 0.9))
-            optimizer = torch.optim.SGD(params, lr=lr, momentum=momentum, weight_decay=wd)
+            optimizer = torch.optim.SGD(
+                params, lr=lr, momentum=momentum, weight_decay=wd
+            )
         else:
             raise ValueError(f"Unsupported optimizer: {name}")
 
@@ -242,7 +283,9 @@ class PLHeatmapModule(pl.LightningModule):
                     milestones=[warmup_epochs],
                 )
             else:
-                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=max(1, epochs))
+                scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(
+                    optimizer, T_max=max(1, epochs)
+                )
 
             return {
                 "optimizer": optimizer,
@@ -255,7 +298,9 @@ class PLHeatmapModule(pl.LightningModule):
         return optimizer
 
     # -------------------------- Utilities --------------------------
-    def _save_validation_preview(self, images: torch.Tensor, outputs: torch.Tensor, targets: torch.Tensor) -> None:
+    def _save_validation_preview(
+        self, images: torch.Tensor, outputs: torch.Tensor, targets: torch.Tensor
+    ) -> None:
         """Save a small set of prediction and target overlay previews under the log directory.
 
         Args:
@@ -266,7 +311,9 @@ class PLHeatmapModule(pl.LightningModule):
 
         base_dir = Path(self.cfg.runtime.log_dir) / self.cfg.runtime.run_id
         pred_overlay_dir = base_dir / "overlays_pred" / f"epoch{self.current_epoch:03d}"
-        target_overlay_dir = base_dir / "overlays_target" / f"epoch{self.current_epoch:03d}"
+        target_overlay_dir = (
+            base_dir / "overlays_target" / f"epoch{self.current_epoch:03d}"
+        )
         pred_overlay_dir.mkdir(parents=True, exist_ok=True)
         target_overlay_dir.mkdir(parents=True, exist_ok=True)
 
@@ -277,7 +324,7 @@ class PLHeatmapModule(pl.LightningModule):
             img_t = images[idx].detach().cpu()
             pred_hm_t = outputs[idx].detach().cpu()
             target_hm_t = targets[idx].detach().cpu()
-            
+
             # Save prediction overlay
             save_overlay_from_tensor(
                 img_t,
@@ -285,7 +332,7 @@ class PLHeatmapModule(pl.LightningModule):
                 pred_overlay_dir / f"sample_{idx:02d}.png",
                 denormalize=denorm,
             )
-            
+
             # Save target overlay
             save_overlay_from_tensor(
                 img_t,
@@ -295,7 +342,7 @@ class PLHeatmapModule(pl.LightningModule):
             )
 
     # -------------------------- Epoch hooks（解凍で再探索） --------------------------
-    def on_train_epoch_start(self) -> None:  # type: ignore[override]
+    def on_train_epoch_start(self) -> None:
         """Handle scheduled backbone (un)freezing at epoch boundaries.
 
         Freezes the backbone for the first ``training.backbone_freeze_epochs``
@@ -312,7 +359,9 @@ class PLHeatmapModule(pl.LightningModule):
             if not self._backbone_frozen:
                 self._set_backbone_requires_grad(False)
                 self._backbone_frozen = True
-                self.print(f"[Backbone] Frozen (epoch {self.current_epoch} < {self._freeze_epochs})")
+                self.print(
+                    f"[Backbone] Frozen (epoch {self.current_epoch} < {self._freeze_epochs})"
+                )
         else:
             # Unfreeze once warmup period is over
             if self._backbone_frozen:
@@ -323,7 +372,7 @@ class PLHeatmapModule(pl.LightningModule):
                 if self._auto_mb:
                     self._runtime_mb = None  # いったん忘れてBから再挑戦
 
-    def on_train_epoch_end(self) -> None:  # type: ignore[override]
+    def on_train_epoch_end(self) -> None:
         # scheduler を手動で進める（手動最適化のため）
         scheds = self.lr_schedulers()
         if scheds is None:

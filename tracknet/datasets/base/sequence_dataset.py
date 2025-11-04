@@ -15,10 +15,11 @@ Return format for ``__getitem__``:
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence, Tuple
+from collections.abc import Sequence
+from typing import Any
 
-from PIL import Image
 import torch
+from PIL import Image
 from torch.utils.data import Dataset
 
 from tracknet.datasets.base.image_dataset import PreprocessConfig
@@ -56,7 +57,9 @@ class BaseSequenceDataset(Dataset):
         self.preprocess = preprocess or PreprocessConfig()
 
     # ----- Methods expected from subclasses -----
-    def _get_window_records(self, index: int) -> Sequence[Dict[str, Any]]:  # pragma: no cover - abstract
+    def _get_window_records(
+        self, index: int
+    ) -> Sequence[dict[str, Any]]:  # pragma: no cover - abstract
         """Return an ordered sequence of records for this window.
 
         Each record must contain keys ``path``, ``coord``, and ``visibility``.
@@ -70,7 +73,7 @@ class BaseSequenceDataset(Dataset):
         raise NotImplementedError
 
     # ----- Core loading logic -----
-    def __getitem__(self, index: int) -> Dict[str, Any]:
+    def __getitem__(self, index: int) -> dict[str, Any]:
         """Load and return a sequence sample.
 
         Args:
@@ -82,11 +85,11 @@ class BaseSequenceDataset(Dataset):
         """
 
         recs = list(self._get_window_records(index))
-        images: List[torch.Tensor] = []
-        coords: List[Tuple[float, float]] = []
-        vis: List[int] = []
-        orig_sizes: List[Tuple[int, int]] = []
-        curr_sizes: List[Tuple[int, int]] = []
+        images: list[torch.Tensor] = []
+        coords: list[tuple[float, float]] = []
+        vis: list[int] = []
+        orig_sizes: list[tuple[int, int]] = []
+        curr_sizes: list[tuple[int, int]] = []
 
         # Use a consistent random decision per window (e.g. for flip)
         # by letting ``apply_augmentations_single`` handle RNG internally. Here
@@ -118,4 +121,3 @@ class BaseSequenceDataset(Dataset):
                 "sizes": curr_sizes,
             },
         }
-

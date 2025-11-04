@@ -11,8 +11,8 @@ Output format:
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Sequence
 
 import torch
 import torch.nn as nn
@@ -28,9 +28,10 @@ class ConvNeXtBackboneConfig:
         device_map: Passed to HF .from_pretrained (e.g., "auto" or None).
         local_files_only: If True, load only from local cache.
     """
+
     pretrained_model_name: str = "facebook/dinov3-convnext-base-pretrain-lvd1689m"
     return_stages: Sequence[int] = (0, 1, 2, 3, 4)  # <-- C1..C5 をデフォルトで返す
-    device_map: Optional[str] = "auto"
+    device_map: str | None = "auto"
     local_files_only: bool = True
 
 
@@ -52,7 +53,7 @@ class ConvNeXtBackbone(nn.Module):
         try:
             self.model = AutoModel.from_pretrained(
                 cfg.pretrained_model_name,
-                device_map=cfg.device_map,          # fixed: device_map
+                device_map=cfg.device_map,  # fixed: device_map
                 local_files_only=cfg.local_files_only,
             )
         except Exception as e:
@@ -61,7 +62,7 @@ class ConvNeXtBackbone(nn.Module):
                 "Ensure the model is cached locally or set `local_files_only=False` in the config."
             ) from e
 
-    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> list[torch.Tensor]:
         """Compute multi-scale feature maps.
 
         Args:
@@ -72,7 +73,7 @@ class ConvNeXtBackbone(nn.Module):
         """
         out = self.model(x, output_hidden_states=True, return_dict=True)
         hs = out.hidden_states  # type: ignore[attr-defined]
-        feats: List[torch.Tensor] = []
+        feats: list[torch.Tensor] = []
         for idx in self.cfg.return_stages:
             f = hs[idx]  # expected [B, C, H, W]
             feats.append(f)

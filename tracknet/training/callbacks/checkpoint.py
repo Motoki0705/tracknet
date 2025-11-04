@@ -6,11 +6,10 @@ The actual save operation is provided by the caller via a callable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Callable, Literal, Optional
-
 import math
-
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Literal
 
 Mode = Literal["min", "max"]
 
@@ -46,9 +45,8 @@ class ModelCheckpoint:
             ``True`` if a checkpoint was saved.
         """
 
-        improved = (
-            (self.cfg.mode == "min" and value < self.best) or
-            (self.cfg.mode == "max" and value > self.best)
+        improved = (self.cfg.mode == "min" and value < self.best) or (
+            self.cfg.mode == "max" and value > self.best
         )
         if improved:
             self.best = value
@@ -58,4 +56,3 @@ class ModelCheckpoint:
             self.save_fn()
             return True
         return False
-

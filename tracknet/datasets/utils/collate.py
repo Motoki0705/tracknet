@@ -12,13 +12,14 @@ Heatmap generation:
 
 from __future__ import annotations
 
-from typing import Dict, Iterable, List, Sequence, Tuple
+from collections.abc import Sequence
 
-import math
 import torch
 
 
-def gaussian_2d(width: int, height: int, cx: float, cy: float, sigma: float) -> torch.Tensor:
+def gaussian_2d(
+    width: int, height: int, cx: float, cy: float, sigma: float
+) -> torch.Tensor:
     """Create a 2D Gaussian heatmap.
 
     Args:
@@ -40,10 +41,10 @@ def gaussian_2d(width: int, height: int, cx: float, cy: float, sigma: float) -> 
 
 
 def _scale_coord_to_heatmap(
-    coord: Tuple[float, float],
-    image_size: Tuple[int, int],
-    heatmap_size: Tuple[int, int],
-) -> Tuple[float, float]:
+    coord: tuple[float, float],
+    image_size: tuple[int, int],
+    heatmap_size: tuple[int, int],
+) -> tuple[float, float]:
     """Scale a coordinate from image space to heatmap space."""
 
     img_w, img_h = image_size
@@ -55,10 +56,10 @@ def _scale_coord_to_heatmap(
 
 
 def collate_frames(
-    batch: Sequence[Dict],
-    heatmap_size: Tuple[int, int],
+    batch: Sequence[dict],
+    heatmap_size: tuple[int, int],
     sigma: float,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Collate a batch of frame samples and build heatmaps/masks.
 
     Args:
@@ -76,8 +77,8 @@ def collate_frames(
     images = torch.stack([s["image"] for s in batch], dim=0)
     hm_w, hm_h = heatmap_size
 
-    heatmaps: List[torch.Tensor] = []
-    masks: List[torch.Tensor] = []
+    heatmaps: list[torch.Tensor] = []
+    masks: list[torch.Tensor] = []
     for s in batch:
         vis = int(s.get("visibility", 1))
         size = tuple(s["meta"]["size"])  # Current image size after augmentations (W, H)
@@ -98,10 +99,10 @@ def collate_frames(
 
 
 def collate_sequences(
-    batch: Sequence[Dict],
-    heatmap_size: Tuple[int, int],
+    batch: Sequence[dict],
+    heatmap_size: tuple[int, int],
     sigma: float,
-) -> Dict[str, torch.Tensor]:
+) -> dict[str, torch.Tensor]:
     """Collate a batch of sequence samples and build heatmaps/masks.
 
     Args:
@@ -119,15 +120,19 @@ def collate_sequences(
     images = torch.stack([s["images"] for s in batch], dim=0)  # [B, T, C, H, W]
     hm_w, hm_h = heatmap_size
 
-    heatmaps: List[torch.Tensor] = []
-    masks: List[torch.Tensor] = []
+    heatmaps: list[torch.Tensor] = []
+    masks: list[torch.Tensor] = []
     for s in batch:
         T = s["images"].shape[0]
-        sizes = [tuple(x) for x in s["meta"]["sizes"]]  # Current image sizes after augmentations
-        hms_t: List[torch.Tensor] = []
-        mks_t: List[torch.Tensor] = []
+        sizes = [
+            tuple(x) for x in s["meta"]["sizes"]
+        ]  # Current image sizes after augmentations
+        hms_t: list[torch.Tensor] = []
+        mks_t: list[torch.Tensor] = []
         for t in range(T):
-            cx, cy = _scale_coord_to_heatmap(tuple(s["coords"][t]), sizes[t], heatmap_size)
+            cx, cy = _scale_coord_to_heatmap(
+                tuple(s["coords"][t]), sizes[t], heatmap_size
+            )
             hm = gaussian_2d(hm_w, hm_h, cx, cy, sigma)
             vis = int(s["visibility"][t])
             if vis == 0:
@@ -145,4 +150,3 @@ def collate_sequences(
         "heatmaps": torch.stack(heatmaps, dim=0),
         "masks": torch.stack(masks, dim=0),
     }
-

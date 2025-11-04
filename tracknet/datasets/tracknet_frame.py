@@ -11,9 +11,10 @@ visibility flag. Heatmap generation is deferred to collate utilities.
 from __future__ import annotations
 
 import csv
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Tuple
+from typing import Any
 
 from tracknet.datasets.base.image_dataset import BaseImageDataset, PreprocessConfig
 
@@ -40,7 +41,7 @@ class TrackNetFrameDataset(BaseImageDataset):
         super().__init__(cfg.preprocess)
         self.root = Path(cfg.root)
         self.games = list(cfg.games)
-        self.records: List[Dict[str, Any]] = []
+        self.records: list[dict[str, Any]] = []
         self._build_index()
 
     # ----- Indexing -----
@@ -49,13 +50,18 @@ class TrackNetFrameDataset(BaseImageDataset):
             game_dir = self.root / game
             if not game_dir.exists():
                 continue
-            for clip_dir in sorted(p for p in game_dir.iterdir() if p.is_dir() and p.name.startswith("Clip")):
+            for clip_dir in sorted(
+                p
+                for p in game_dir.iterdir()
+                if p.is_dir() and p.name.startswith("Clip")
+            ):
                 label_csv = clip_dir / "Label.csv"
                 if not label_csv.exists():
                     # Skip if missing labels
                     continue
                 # Build a map from filename -> (vis, x, y)
-                labels: Dict[str, Tuple[int, float, float]] = {}
+                labels: dict[str, tuple[int, float, float]] = {}
+
                 def _safe_float(v: str | float | int, default: float = 0.0) -> float:
                     try:
                         s = str(v).strip()
@@ -65,7 +71,7 @@ class TrackNetFrameDataset(BaseImageDataset):
                     except Exception:
                         return float(default)
 
-                with open(label_csv, "r", newline="", encoding="utf-8") as f:
+                with open(label_csv, newline="", encoding="utf-8") as f:
                     reader = csv.DictReader(f)
                     for row in reader:
                         fname = row["file name"].strip()
@@ -74,7 +80,9 @@ class TrackNetFrameDataset(BaseImageDataset):
                         y = _safe_float(row.get("y-coordinate", 0.0))
                         labels[fname] = (vis, x, y)
 
-                for img_path in sorted(p for p in clip_dir.iterdir() if p.suffix.lower() == ".jpg"):
+                for img_path in sorted(
+                    p for p in clip_dir.iterdir() if p.suffix.lower() == ".jpg"
+                ):
                     key = img_path.name
                     if key not in labels:
                         continue
@@ -90,7 +98,7 @@ class TrackNetFrameDataset(BaseImageDataset):
                     )
 
     # ----- Base class hooks -----
-    def _get_record(self, index: int) -> Dict[str, Any]:
+    def _get_record(self, index: int) -> dict[str, Any]:
         return self.records[index]
 
     def __len__(self) -> int:
