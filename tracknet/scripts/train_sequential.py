@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     total_start_time = time.time()
 
     for i, model in enumerate(args.models):
-        print(f"=== Training Model {i+1}/{len(args.models)}: {model} ===")
+        print(f"=== Training Model {i + 1}/{len(args.models)}: {model} ===")
 
         start_time = time.time()
         cmd = build_train_command(args, model)

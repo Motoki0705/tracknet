@@ -321,7 +321,7 @@ def tmp_frame_sequence(tmp_path):
     # Create 5 test frames with different colors
     for i in range(5):
         frame = np.full((480, 640, 3), i * 50, dtype=np.uint8)
-        frame_path = frames_dir / f"{i+1:04d}.jpg"  # 0001.jpg, 0002.jpg, etc.
+        frame_path = frames_dir / f"{i + 1:04d}.jpg"  # 0001.jpg, 0002.jpg, etc.
         cv2.imwrite(str(frame_path), frame)
 
     return frames_dir
@@ -424,7 +424,7 @@ def test_player_tracker_with_frame_sequence(tmp_path):
     # Create frame sequence
     for i in range(3):
         frame = np.full((480, 640, 3), i * 50, dtype=np.uint8)
-        frame_path = data_root / f"{i+1:04d}.jpg"
+        frame_path = data_root / f"{i + 1:04d}.jpg"
         cv2.imwrite(str(frame_path), frame)
 
     # Create ball annotation CSV

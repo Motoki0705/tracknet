@@ -124,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
     if n == 0:
         print("Empty loader.")
         return 1
-    print(f"eval_loss={tot_loss/n:.4f} l2={tot_l2/n:.3f} pck@3={tot_pck/n:.3f}")
+    print(f"eval_loss={tot_loss / n:.4f} l2={tot_l2 / n:.3f} pck@3={tot_pck / n:.3f}")
     return 0
 
 

@@ -100,9 +100,9 @@ class HRDecoder(nn.Module):
 
     def __init__(self, cfg: HRDecoderConfig):
         super().__init__()
-        assert len(cfg.in_channels) == len(
-            cfg.widths
-        ), "in_channels と widths の長さを合わせてください"
+        assert len(cfg.in_channels) == len(cfg.widths), (
+            "in_channels と widths の長さを合わせてください"
+        )
         self.cfg = cfg
 
         # Lateral: 各段を所定の幅に合わせる（1x1）

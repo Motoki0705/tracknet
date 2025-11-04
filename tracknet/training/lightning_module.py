@@ -103,7 +103,9 @@ class PLHeatmapModule(pl.LightningModule):
         return self.model(images)
 
     # -------------------------- Training --------------------------
-    def training_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor:  # type: ignore[override]
+    def training_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor:  # type: ignore[override]
         opt = self.optimizers()
         if isinstance(opt, (list, tuple)):
             opt = opt[0]
@@ -200,7 +202,9 @@ class PLHeatmapModule(pl.LightningModule):
             torch.cuda.ipc_collect()
 
     # -------------------------- Validation（必要なら同様に自動分割） --------------------------
-    def validation_step(self, batch: dict[str, torch.Tensor], batch_idx: int) -> torch.Tensor | None:  # type: ignore[override]
+    def validation_step(
+        self, batch: dict[str, torch.Tensor], batch_idx: int
+    ) -> torch.Tensor | None:  # type: ignore[override]
         images, targets, masks = batch["images"], batch["heatmaps"], batch["masks"]
         B = images.size(0)
 
