@@ -200,22 +200,22 @@ class HeatmapModel(nn.Module):
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         if self.variant == "vit_upsample":
             tokens = self.backbone(images)  # [B, Hp, Wp, C]
-            features = self.decoder(tokens)  # type: ignore[arg-type]
+            features = self.decoder(tokens)
             return self.head(features)
 
         if self.variant == "convnext_fpn":
-            feats = self.backbone(images)  # type: ignore[call-arg]
-            pyramid = self.decoder(feats)  # type: ignore[arg-type]
+            feats = self.backbone(images)
+            pyramid = self.decoder(feats)
             return self.head(pyramid)
 
         if self.variant == "convnext_deformable_fpn":
-            feats = self.backbone(images)  # type: ignore[call-arg]
-            deformable_features = self.decoder(feats)  # type: ignore[arg-type]
+            feats = self.backbone(images)
+            deformable_features = self.decoder(feats)
             return self.head(deformable_features)
 
         if self.variant == "convnext_hrnet":
-            feats = self.backbone(images)  # type: ignore[call-arg]
-            hr_features = self.decoder(feats)  # type: ignore[arg-type]
+            feats = self.backbone(images)
+            hr_features = self.decoder(feats)
             return self.head(hr_features)
 
 

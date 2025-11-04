@@ -73,7 +73,7 @@ _lazy_map = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     if name in _lazy_map:
         try:
             obj = _lazy_map[name]()

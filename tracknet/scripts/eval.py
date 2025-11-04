@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+from typing import Any
 
 import torch
 
@@ -34,7 +35,7 @@ def parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
     return known, unknown
 
 
-def _find_best_ckpt(cfg) -> Path | None:
+def _find_best_ckpt(cfg: Any) -> Path | None:
     ckpt_dir = Path(cfg.runtime.ckpt_dir)
     if not ckpt_dir.exists():
         return None
@@ -105,7 +106,7 @@ def main(argv: list[str] | None = None) -> int:
             targets = batch["heatmaps"].to(device)
             masks = batch["masks"].to(device)
             if autocast_dtype is not None:
-                ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)  # type: ignore[arg-type]
+                ctx = torch.autocast(device_type=device_type, dtype=autocast_dtype)
             else:
                 from contextlib import nullcontext
 

@@ -99,13 +99,13 @@ class PLHeatmapModule(pl.LightningModule):
         self.automatic_optimization = False
         self._preview_saved_epoch: int = -1
 
-    def forward(self, images: torch.Tensor) -> torch.Tensor:  # type: ignore[override]
+    def forward(self, images: torch.Tensor) -> torch.Tensor:
         return self.model(images)
 
     # -------------------------- Training --------------------------
     def training_step(
         self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor:  # type: ignore[override]
+    ) -> torch.Tensor:
         opt = self.optimizers()
         if isinstance(opt, (list, tuple)):
             opt = opt[0]
@@ -204,7 +204,7 @@ class PLHeatmapModule(pl.LightningModule):
     # -------------------------- Validation（必要なら同様に自動分割） --------------------------
     def validation_step(
         self, batch: dict[str, torch.Tensor], batch_idx: int
-    ) -> torch.Tensor | None:  # type: ignore[override]
+    ) -> torch.Tensor | None:
         images, targets, masks = batch["images"], batch["heatmaps"], batch["masks"]
         B = images.size(0)
 
@@ -239,7 +239,7 @@ class PLHeatmapModule(pl.LightningModule):
         return loss
 
     # -------------------------- Optimizer / Scheduler --------------------------
-    def configure_optimizers(self):  # type: ignore[override]
+    def configure_optimizers(self):
         ocfg = self.cfg.training.optimizer
         name = str(ocfg.get("name", "adamw")).lower()
         lr = float(ocfg.get("lr", 5e-4))
@@ -342,7 +342,7 @@ class PLHeatmapModule(pl.LightningModule):
             )
 
     # -------------------------- Epoch hooks（解凍で再探索） --------------------------
-    def on_train_epoch_start(self) -> None:  # type: ignore[override]
+    def on_train_epoch_start(self) -> None:
         """Handle scheduled backbone (un)freezing at epoch boundaries.
 
         Freezes the backbone for the first ``training.backbone_freeze_epochs``
@@ -372,7 +372,7 @@ class PLHeatmapModule(pl.LightningModule):
                 if self._auto_mb:
                     self._runtime_mb = None  # いったん忘れてBから再挑戦
 
-    def on_train_epoch_end(self) -> None:  # type: ignore[override]
+    def on_train_epoch_end(self) -> None:
         # scheduler を手動で進める（手動最適化のため）
         scheds = self.lr_schedulers()
         if scheds is None:
