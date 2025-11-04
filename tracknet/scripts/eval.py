@@ -112,8 +112,8 @@ def main(argv: list[str] | None = None) -> int:
                 ctx = nullcontext()
             with ctx:
                 preds = model(images)
-            l = loss(preds, targets, masks)
-            tot_loss += float(l.cpu())
+            loss_val = loss(preds, targets, masks)
+            tot_loss += float(loss_val.cpu())
             # Argmax-based metrics on heatmap space
             pred_xy = heatmap_argmax_coords(preds)
             tgt_xy = heatmap_argmax_coords(targets)

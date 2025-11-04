@@ -6,8 +6,6 @@ such as L2 distance and PCK@r. All metrics can leverage visibility masks.
 
 from __future__ import annotations
 
-from typing import Tuple
-
 import torch
 import torch.nn.functional as F
 

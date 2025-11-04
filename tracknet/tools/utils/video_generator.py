@@ -173,8 +173,7 @@ def validate_frame_sequence(frames_dir: Path) -> tuple[bool, list[str]]:
             issues.append(f"Cannot read last frame: {sorted_frames[-1]}")
 
         # Check dimensions match
-        if first_frame is not None and last_frame is not None:
-            if first_frame.shape != last_frame.shape:
+        if (first_frame is not None and last_frame is not None and first_frame.shape != last_frame.shape):
                 issues.append("Frame dimensions are not consistent")
 
     except Exception as e:

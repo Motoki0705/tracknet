@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import importlib
 import threading
-from typing import TYPE_CHECKING, Any, Dict
+from typing import TYPE_CHECKING, Any
 
 __all__ = [
     # losses

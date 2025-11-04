@@ -514,7 +514,7 @@ class PlayerTrackerApp:
                         "visibility": float(det.get("visibility", 1.0)),
                     }
                 )
-        for track_id, track in tracks.items():
+        for _track_id, track in tracks.items():
             track["summary"] = summary_from_detections(
                 track["detections"], total_frames=len(history)
             )

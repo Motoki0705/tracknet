@@ -206,10 +206,10 @@ class Tracker:
 
         # Sort by area sum (max to min)
         id_area_sum = {}
-        l, w, h = get_video_lwh(video_path)
+        video_length, video_width, video_height = get_video_lwh(video_path)
         for k, v in id_to_bbx_xyxys.items():
             bbx_wh = v[:, 2:] - v[:, :2]
-            id_area_sum[k] = (bbx_wh[:, 0] * bbx_wh[:, 1] / w / h).sum()
+            id_area_sum[k] = (bbx_wh[:, 0] * bbx_wh[:, 1] / video_width / video_height).sum()
         id2area_sum = dict(
             sorted(id_area_sum.items(), key=lambda item: item[1], reverse=True)
         )

@@ -285,7 +285,7 @@ class DeformableFPNDecoder(nn.Module):
         # Split encoded features back to levels
         encoded_feats = []
         start_idx = 0
-        for i, (h, w) in enumerate(spatial_shapes):
+        for _, (h, w) in enumerate(spatial_shapes):
             end_idx = start_idx + h * w
             feat = encoded[start_idx:end_idx].permute(1, 2, 0)  # [B, C, H*W]
             feat = feat.view(-1, self.cfg.d_model, h, w)  # [B, C, H, W]

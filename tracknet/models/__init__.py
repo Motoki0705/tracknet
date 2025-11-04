@@ -6,7 +6,6 @@ Includes backbones, decoders, and heads to produce heatmap predictions.
 Lazily exposes classes at module top-level to reduce import time.
 """
 
-import importlib
 from typing import TYPE_CHECKING
 
 
