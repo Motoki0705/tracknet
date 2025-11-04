@@ -90,6 +90,12 @@ uv run pre-commit run --all-files
 
 ### テスト
 
+このプロジェクトでは3層のテスト戦略を採用しています:
+
+- **Unit Tests**: 個別の関数やクラスをテスト (tests/unit/)
+- **Integration Tests**: 複数のコンポーネント連携をテスト (tests/integration/)  
+- **E2E Tests**: 完全なワークフローをテスト (tests/e2e/)
+
 ```bash
 # 全てのテストを実行
 uv run pytest
@@ -97,9 +103,27 @@ uv run pytest
 # カバレッジレポート付きでテストを実行
 uv run pytest --cov=tracknet --cov-report=html
 
-# 特定のテストファイルを実行
-uv run pytest tests/test_specific.py -v
+# 特定のテスト層を実行
+uv run pytest tests/unit/ -v          # Unit tests only
+uv run pytest tests/integration/ -v   # Integration tests only
+uv run pytest tests/e2e/ -v           # E2E tests only
+
+# マーカー付きテストを実行
+uv run pytest -m unit                  # Unit tests only
+uv run pytest -m integration           # Integration tests only
+uv run pytest -m e2e                   # E2E tests only
+uv run pytest -m "not slow"            # Skip slow tests
 ```
+
+#### カバレッジ目標
+
+- 全体カバレッジ: 75%以上
+- コアモジュール: 85-90%以上
+  - tracknet.utils: 90%以上
+  - tracknet.models: 85%以上  
+  - tracknet.datasets: 85%以上
+
+カバレッジレポートは `htmlcov/index.html` で確認できます。
 
 ## プロジェクト構成
 
@@ -115,7 +139,14 @@ tracknet/
 ├── demo/                    # デモスクリプト
 ├── docs/                    # ドキュメント
 ├── tests/                   # テストコード
+│   ├── unit/                # 単体テスト
+│   ├── integration/         # 統合テスト
+│   ├── e2e/                 # エンドツーエンドテスト
+│   ├── tools/               # ツール関連テスト
+│   ├── conftest.py          # pytest fixtures
+│   └── utils.py             # テストユーティリティ
 ├── configs/                 # 設定ファイル
+├── .github/workflows/       # CI/CDワークフロー
 └── openspec/               # 仕様管理
 ```
 
@@ -137,9 +168,12 @@ GitHub Actionsを使用して以下の自動チェックを実行しています
 - Linting (Ruff)
 - Formatting (Ruff Format)
 - Type Checking (Mypy)
-- Tests (Pytest)
+- Tests (Pytest) with Coverage Reporting
+- Coverage Upload to Codecov
 
 これらのチェックはプルリクエスト作成時とmain/developブランチへのプッシュ時に自動的に実行されます。
+
+カバレッジが75%未満の場合、CIは失敗します。コアモジュールにはより高いカバレッジ要件が適用されます。
 
 ## 貢献方法
 
