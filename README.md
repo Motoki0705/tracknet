@@ -53,7 +53,6 @@ source .venv/bin/activate
 #### Linting & Formatting
 
 - **Ruff**: 高速なPython linterとformatter
-- **Black**: コードフォーマッター
 
 使用方法:
 ```bash
@@ -65,12 +64,6 @@ uv run ruff check . --fix
 
 # Formatting
 uv run ruff format .
-
-# Blackでのフォーマットチェック
-uv run black --check .
-
-# Blackでのフォーマット適用
-uv run black .
 ```
 
 #### Type Checking
@@ -142,7 +135,7 @@ tracknet/
 GitHub Actionsを使用して以下の自動チェックを実行しています:
 
 - Linting (Ruff)
-- Formatting (Black, Ruff Format)
+- Formatting (Ruff Format)
 - Type Checking (Mypy)
 - Tests (Pytest)
 
@@ -152,7 +145,7 @@ GitHub Actionsを使用して以下の自動チェックを実行しています
 
 1. 機能用のブランチを作成: `git checkout -b feat/your-feature-name`
 2. 変更を開発: コーディング規約を守り、テストを追加
-3. 品質チェック: `uv run ruff check . && uv run black . && uv run mypy tracknet && uv run pytest`
+3. 品質チェック: `uv run ruff check . && uv run ruff format . && uv run mypy tracknet && uv run pytest`
 4. プルリクエストを作成
 
 ## ライセンス

@@ -241,8 +241,18 @@ uv run ruff check path/to/file.py
 # 自動修正可能な問題を修正
 uv run ruff check path/to/file.py --fix
 
+# フォーマットを適用
+uv run ruff format path/to/file.py
+
+# フォーマットをチェックのみ
+uv run ruff format --check path/to/file.py
+
 # 特定のルールを無視
 uv run ruff check path/to/file.py --ignore=E501,F403
+
+# 特定のファイルのみ
+uv run ruff check tracknet/models/
+uv run ruff format tracknet/models/
 ```
 
 ### MyPy
@@ -258,21 +268,6 @@ uv run mypy tracknet --strict
 
 # 特定のファイルのみ
 uv run mypy tracknet/models/vit.py
-```
-
-### Black
-
-コードフォーマッター:
-
-```bash
-# フォーマットを適用
-uv run black .
-
-# フォーマットをチェックのみ
-uv run black --check .
-
-# 特定のファイルのみ
-uv run black tracknet/models/
 ```
 
 ## ヘルプとサポート
