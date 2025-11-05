@@ -194,7 +194,9 @@ def save_overlay_from_tensor(
     x_numpy = (x * 255.0).byte().numpy()
 
     # Resize heatmap to match input image size to handle scale mismatch
-    hm_img = Image.fromarray(x_numpy, mode="L").resize(base.size, Image.Resampling.BILINEAR)
+    hm_img = Image.fromarray(x_numpy, mode="L").resize(
+        base.size, Image.Resampling.BILINEAR
+    )
 
     # Create RGBA overlay with colormap (jet-like colors)
     try:
@@ -205,7 +207,9 @@ def save_overlay_from_tensor(
         hm_normalized = (hm_normalized - hm_normalized.min()) / (
             hm_normalized.max() - hm_normalized.min() + 1e-8
         )
-        hm_colored = cm.get_cmap("jet")(hm_normalized)[:, :, :3]  # Take RGB only, drop alpha
+        hm_colored = cm.get_cmap("jet")(hm_normalized)[
+            :, :, :3
+        ]  # Take RGB only, drop alpha
         hm_colored = (hm_colored * 255.0).astype("uint8")
         hm_colored_img = Image.fromarray(hm_colored, mode="RGB").resize(
             base.size, Image.Resampling.BILINEAR

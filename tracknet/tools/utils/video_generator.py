@@ -9,8 +9,8 @@ from __future__ import annotations
 import contextlib
 import logging
 import tempfile
+from collections.abc import Generator
 from pathlib import Path
-from typing import Generator
 
 import cv2
 

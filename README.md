@@ -7,6 +7,7 @@
 - 高精度なオブジェクト検出モデルの開発
 - 学習・評価・推論を再現性高く行える環境構築
 - 推論パイプラインの軽量化と高速化
+- **メモリ効率の良いファインチューニング**（LoRA・量子化対応）
 
 ## 技術スタック
 
@@ -15,6 +16,7 @@
 - **設定管理**: OmegaConf
 - **ロギング/可視化**: TensorBoard, tqdm
 - **モデル関連**: HuggingFace Transformers, PEFT, bitsandbytes
+- **最適化**: LoRA (Low-Rank Adaptation), INT4/FP4量子化
 - **CI/CD**: GitHub Actions
 
 ## 開発環境セットアップ
@@ -174,6 +176,118 @@ GitHub Actionsを使用して以下の自動チェックを実行しています
 これらのチェックはプルリクエスト作成時とmain/developブランチへのプッシュ時に自動的に実行されます。
 
 カバレッジが75%未満の場合、CIは失敗します。コアモジュールにはより高いカバレッジ要件が適用されます。
+
+## LoRAと量子化
+
+TrackNetでは、大規模な事前学習済みモデルを効率的にファインチューニングするための**LoRA (Low-Rank Adaptation)** と**量子化**機能をサポートしています。
+
+### 特徴
+
+- **メモリ効率**: INT4量子化によりメモリ使用量を約75%削減
+- **高速なファインチューニング**: LoRAにより学習パラメータを大幅に削減
+- **設定駆動**: YAML設定ファイルで簡単に有効化・無効化
+- **下位互換性**: 既存の設定はそのまま動作
+
+### 使用例
+
+#### LoRAのみを使用する場合
+
+```yaml
+# configs/model/vit_lora_heatmap.yaml
+model_name: "vit_heatmap"
+pretrained_model_name: facebook/dinov3-vits16-pretrain-lvd1689m
+
+backbone:
+  freeze: false  # LoRAで効率的に学習
+  device_map: auto
+  local_files_only: true
+  patch_size: 16
+
+decoder:
+  channels: [384, 256, 128, 64]
+  upsample: [2, 2, 2]
+  # ... その他設定
+
+heatmap:
+  size: [256, 144]
+  sigma: 2.0
+
+# LoRA設定
+lora:
+  enabled: true
+  r: 16                    # ランク（低いほどパラメータが少ない）
+  lora_alpha: 32           # スケーリング係数
+  lora_dropout: 0.05       # ドロップアウト率
+  target_modules: ["query", "key", "value", "dense"]  # 対象モジュール（自動検出も可能）
+  bias: "none"
+  task_type: "FEATURE_EXTRACTION"
+
+quantization:
+  enabled: false  # 量子化は無効化
+```
+
+#### 量子化 + LoRA (QLoRA) を使用する場合
+
+```yaml
+# configs/model/vit_qlora_heatmap.yaml
+model_name: "vit_heatmap"
+pretrained_model_name: facebook/dinov3-vits16-pretrain-lvd1689m
+
+# ... backbone, decoder, heatmap設定は同じ ...
+
+# LoRA設定
+lora:
+  enabled: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: ["query", "key", "value", "dense"]
+  bias: "none"
+  task_type: "FEATURE_EXTRACTION"
+
+# 量子化設定
+quantization:
+  enabled: true
+  quant_type: "nf4"           # "nf4" または "fp4"
+  compute_dtype: "bfloat16"   # 計算精度
+  skip_modules: []             # 量子化をスキップするモジュール
+  mode: "manual"               # "manual" または "hf"
+  compress_statistics: true
+  use_double_quant: true
+```
+
+### 学習の実行
+
+```bash
+# LoRAモデルで学習
+uv run python train.py --config configs/model/vit_lora_heatmap.yaml
+
+# QLoRAモデルで学習
+uv run python train.py --config configs/model/vit_qlora_heatmap.yaml
+```
+
+### パフォーマンス比較
+
+| モデル | メモリ使用量 | 学習パラメータ数 | 推論速度 |
+|--------|-------------|------------------|----------|
+| 通常    | 100%        | 100%             | 基準     |
+| LoRA   | ~90%        | ~5%              | 基準     |
+| QLoRA  | ~25%        | ~5%              | 基準     |
+
+### 詳細設定
+
+#### LoRAパラメータ
+
+- `r`: LoRAのランク（8, 16, 32, 64など）
+- `lora_alpha`: スケーリング係数（通常rの2倍）
+- `lora_dropout`: ドロップアウト率（0.0-0.1）
+- `target_modules`: LoRAを適用するモジュールリスト（Noneで自動検出）
+
+#### 量子化パラメータ
+
+- `quant_type`: 量子化タイプ（"nf4"推奨、"fp4"も利用可能）
+- `compute_dtype`: 計算精度（"bfloat16"推奨、"float16"も利用可能）
+- `mode`: 量子化モード（"manual"推奨、"hf"はHuggingFace依存）
 
 ## 貢献方法
 

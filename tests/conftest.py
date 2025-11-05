@@ -48,7 +48,7 @@ def sample_image_file(temp_dir):
     """Create a sample image file for testing."""
     import numpy as np
     from PIL import Image
-    
+
     # Create a simple test image
     img_array = np.random.randint(0, 255, (100, 100, 3), dtype=np.uint8)
     img = Image.fromarray(img_array)
@@ -65,7 +65,7 @@ def mock_yolo_model():
         Mock(
             boxes=Mock(xyxy=torch.tensor([[10, 10, 50, 50]])),
             conf=torch.tensor([0.9]),
-            cls=torch.tensor([0])
+            cls=torch.tensor([0]),
         )
     ]
     return mock_model

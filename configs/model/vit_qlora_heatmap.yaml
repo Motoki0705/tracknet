@@ -1,0 +1,47 @@
+# ViT backbone with INT4 quantization + LoRA + upsampling decoder + heatmap head
+model_name: "vit_heatmap"
+pretrained_model_name: facebook/dinov3-vits16-pretrain-lvd1689m
+
+backbone:
+  freeze: false  # LoRA allows training backbone parameters efficiently
+  device_map: auto
+  local_files_only: true
+  patch_size: 16
+
+decoder:
+  # Channel plan including input (C) -> ... -> output map
+  channels: [384, 256, 128, 64]
+  # Upsample factors between stages
+  upsample: [2, 2, 2]
+  blocks_per_stage: 1
+  norm: gn           # 'gn' or 'bn'
+  activation: gelu   # 'gelu' or 'relu'
+  use_depthwise: true
+  use_se: false
+  se_reduction: 8
+  dropout: 0.0
+
+heatmap:
+  # Target heatmap size [W, H]
+  size: [256, 144]
+  sigma: 2.0
+
+# LoRA configuration
+lora:
+  enabled: true
+  r: 16
+  lora_alpha: 32
+  lora_dropout: 0.05
+  target_modules: ["query", "key", "value", "dense"]  # Auto-detected if None
+  bias: "none"
+  task_type: "FEATURE_EXTRACTION"
+
+# Quantization configuration
+quantization:
+  enabled: true
+  quant_type: "nf4"  # "nf4" or "fp4"
+  compute_dtype: "bfloat16"  # "bfloat16" or "float16"
+  skip_modules: []  # Modules to skip during quantization
+  mode: "manual"  # "manual" or "hf"
+  compress_statistics: true
+  use_double_quant: true
