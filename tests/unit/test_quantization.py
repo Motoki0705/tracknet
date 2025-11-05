@@ -4,19 +4,20 @@ This module tests the quantization utilities and configuration
 to ensure they work correctly with different model types and settings.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import Mock, patch, MagicMock
 
-from tracknet.models.lora.config import QuantizationConfig, parse_dtype
+from tracknet.models.lora.config import QuantizationConfig
 from tracknet.models.lora.quantization import (
     _get_parent_and_attr,
-    convert_linear_to_int4_manual,
     apply_hf_quantization,
     apply_quantization,
-    validate_quantization_compatibility,
+    convert_linear_to_int4_manual,
     get_quantization_memory_info,
+    validate_quantization_compatibility,
 )
 
 
@@ -145,7 +146,7 @@ class TestConvertLinearToInt4Manual:
         model = MockQuantizableModel()
         
         # Convert to INT4
-        result = convert_linear_to_int4_manual(
+        convert_linear_to_int4_manual(
             model,
             skip_modules=["to_skip"],
             quant_type="nf4",

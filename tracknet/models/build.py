@@ -224,9 +224,12 @@ class HeatmapModel(nn.Module):
         # Import here to avoid circular imports and make LoRA/quantization optional
         try:
             from tracknet.models.lora import LoRAConfig, QuantizationConfig
-            from tracknet.models.lora.lora_wrapper import apply_lora_to_model, prepare_model_for_kbit_training
-            from tracknet.models.lora.quantization import apply_quantization
             from tracknet.models.lora.config import parse_dtype
+            from tracknet.models.lora.lora_wrapper import (
+                apply_lora_to_model,
+                prepare_model_for_kbit_training,
+            )
+            from tracknet.models.lora.quantization import apply_quantization
             LORA_AVAILABLE = True
         except ImportError:
             LORA_AVAILABLE = False

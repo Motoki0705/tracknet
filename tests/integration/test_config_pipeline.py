@@ -1,10 +1,9 @@
 """Integration tests for configuration and data loading pipeline."""
 
+from unittest.mock import patch
+
 import pytest
-import tempfile
 import yaml
-from pathlib import Path
-from unittest.mock import Mock, patch
 
 from tracknet.utils.config import build_cfg
 

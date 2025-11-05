@@ -6,7 +6,6 @@ with the TrackNet training pipeline.
 
 import pytest
 import torch
-import torch.nn as nn
 from omegaconf import OmegaConf
 
 from tracknet.models.build import build_model

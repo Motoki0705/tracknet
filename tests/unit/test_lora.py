@@ -4,17 +4,18 @@ This module tests the LoRA wrapper utilities and configuration
 to ensure they work correctly with different model types and configurations.
 """
 
+from unittest.mock import Mock, patch
+
 import pytest
 import torch
 import torch.nn as nn
-from unittest.mock import Mock, patch
 
 from tracknet.models.lora.config import LoRAConfig, parse_dtype
 from tracknet.models.lora.lora_wrapper import (
-    auto_target_modules,
     apply_lora_to_model,
-    prepare_model_for_kbit_training,
+    auto_target_modules,
     get_lora_trainable_parameters,
+    prepare_model_for_kbit_training,
     print_lora_trainable_parameters,
 )
 

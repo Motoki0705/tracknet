@@ -1,11 +1,11 @@
 """End-to-end tests for complete training pipeline."""
 
-import pytest
-import tempfile
-import yaml
-import torch
 from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
+
+import pytest
+import torch
+import yaml
 
 
 @pytest.mark.e2e
@@ -147,8 +147,8 @@ class TestDataProcessingPipeline:
     
     def test_image_preprocessing_pipeline(self, sample_image_file):
         """Test complete image preprocessing pipeline."""
-        from PIL import Image
         import torchvision.transforms as transforms
+        from PIL import Image
         
         # Load original image
         original_image = Image.open(sample_image_file)
@@ -184,7 +184,7 @@ class TestDataProcessingPipeline:
         
         # Parse annotations
         annotations = []
-        with open(annotation_file, 'r') as f:
+        with open(annotation_file) as f:
             for line in f:
                 parts = line.strip().split()
                 if len(parts) == 5:
@@ -295,7 +295,8 @@ class TestModelSavingLoadingPipeline:
         torch.save(checkpoint, checkpoint_path)
         
         # Load both and verify consistency
-        loaded_config = yaml.safe_load(open(config_path, 'r'))
+        with open(config_path) as f:
+            loaded_config = yaml.safe_load(f)
         loaded_checkpoint = torch.load(checkpoint_path)
         
         assert loaded_config == loaded_checkpoint["config"]
