@@ -41,7 +41,7 @@ class TestLoRAConfig:
             lora_dropout=0.1,
             target_modules=["query", "key"],
             bias="lora_only",
-            task_type="FEATURE_EXTRACTION"
+            task_type="FEATURE_EXTRACTION",
         )
         assert config.r == 8
         assert config.lora_alpha == 16
@@ -60,7 +60,9 @@ class TestLoRAConfig:
             LoRAConfig(lora_alpha=-1)
 
         # Test invalid dropout
-        with pytest.raises(ValueError, match="LoRA dropout must be between 0.0 and 1.0"):
+        with pytest.raises(
+            ValueError, match="LoRA dropout must be between 0.0 and 1.0"
+        ):
             LoRAConfig(lora_dropout=1.5)
 
         # Test invalid bias
@@ -115,7 +117,7 @@ class TestAutoTargetModules:
         ]
 
         targets = auto_target_modules(model)
-        
+
         # Should include attention and MLP modules (check for substrings)
         assert any("query" in t for t in targets)
         assert any("key" in t for t in targets)
@@ -123,7 +125,7 @@ class TestAutoTargetModules:
         assert any("dense" in t for t in targets)
         assert any("fc1" in t for t in targets)
         assert any("fc2" in t for t in targets)
-        
+
         # Should not include normalization layers
         assert not any("norm" in t for t in targets)
 
@@ -137,7 +139,7 @@ class TestAutoTargetModules:
         ]
 
         targets = auto_target_modules(model)
-        
+
         assert "fc1" in targets
         assert "fc2" in targets
         assert "norm" not in targets
@@ -151,7 +153,7 @@ class TestAutoTargetModules:
         ]
 
         targets = auto_target_modules(model)
-        
+
         # Should fallback to basic linear layer names
         assert "fc1" in targets
         assert "fc2" in targets
@@ -177,8 +179,8 @@ class MockModel(nn.Module):
 class TestApplyLoRA:
     """Test LoRA application to models."""
 
-    @patch('tracknet.models.lora.lora_wrapper.get_peft_model')
-    @patch('tracknet.models.lora.lora_wrapper.LoraConfig')
+    @patch("tracknet.models.lora.lora_wrapper.get_peft_model")
+    @patch("tracknet.models.lora.lora_wrapper.LoraConfig")
     def test_apply_lora_success(self, mock_lora_config, mock_get_peft_model):
         """Test successful LoRA application."""
         # Setup mocks
@@ -190,7 +192,7 @@ class TestApplyLoRA:
 
         # Create test model
         model = MockModel()
-        
+
         # Apply LoRA
         result = apply_lora_to_model(model, mock_config, ["linear1", "linear2"])
 
@@ -199,8 +201,8 @@ class TestApplyLoRA:
         mock_get_peft_model.assert_called_once_with(model, mock_lora_instance)
         assert result == mock_lora_model
 
-    @patch('tracknet.models.lora.lora_wrapper.get_peft_model')
-    @patch('tracknet.models.lora.lora_wrapper.LoraConfig')
+    @patch("tracknet.models.lora.lora_wrapper.get_peft_model")
+    @patch("tracknet.models.lora.lora_wrapper.LoraConfig")
     def test_apply_lora_with_auto_target(self, mock_lora_config, mock_get_peft_model):
         """Test LoRA application with automatic target detection."""
         mock_config = LoRAConfig()
@@ -210,7 +212,7 @@ class TestApplyLoRA:
         mock_get_peft_model.return_value = mock_lora_model
 
         model = MockModel()
-        
+
         # Apply LoRA without specifying target modules
         apply_lora_to_model(model, mock_config, target_modules=None)
 
@@ -219,12 +221,12 @@ class TestApplyLoRA:
 
     def test_apply_lora_missing_peft(self):
         """Test LoRA application when PEFT is not available."""
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_import.side_effect = ImportError("No module named 'peft'")
-            
+
             model = MockModel()
             config = LoRAConfig()
-            
+
             with pytest.raises(ImportError, match="PEFT library is required"):
                 apply_lora_to_model(model, config)
 
@@ -232,7 +234,7 @@ class TestApplyLoRA:
 class TestPrepareKbitTraining:
     """Test k-bit training preparation."""
 
-    @patch('tracknet.models.lora.lora_wrapper.prepare_model_for_kbit_training')
+    @patch("tracknet.models.lora.lora_wrapper.prepare_model_for_kbit_training")
     def test_prepare_kbit_success(self, mock_prepare):
         """Test successful k-bit training preparation."""
         mock_model = MockModel()  # Use real model instead of Mock
@@ -240,17 +242,17 @@ class TestPrepareKbitTraining:
         mock_prepare.return_value = mock_prepared
 
         result = prepare_model_for_kbit_training(mock_model)
-        
+
         mock_prepare.assert_called_once_with(mock_model)
         assert result == mock_prepared
 
     def test_prepare_kbit_missing_peft(self):
         """Test k-bit preparation when PEFT is not available."""
-        with patch('builtins.__import__') as mock_import:
+        with patch("builtins.__import__") as mock_import:
             mock_import.side_effect = ImportError("No module named 'peft'")
-            
+
             model = MockModel()
-            
+
             with pytest.raises(ImportError, match="PEFT library is required"):
                 prepare_model_for_kbit_training(model)
 
@@ -261,13 +263,13 @@ class TestLoRAParameterUtils:
     def test_get_trainable_parameters(self):
         """Test getting trainable parameter counts."""
         model = MockModel()
-        
+
         # Freeze some parameters
         for param in model.linear1.parameters():
             param.requires_grad = False
-        
+
         trainable, total = get_lora_trainable_parameters(model)
-        
+
         # Should count only trainable parameters
         assert trainable < total
         assert total == sum(p.numel() for p in model.parameters())
@@ -275,13 +277,13 @@ class TestLoRAParameterUtils:
     def test_print_trainable_parameters(self, capsys):
         """Test printing trainable parameter information."""
         model = MockModel()
-        
+
         # Freeze some parameters to simulate LoRA
         for param in model.linear1.parameters():
             param.requires_grad = False
-        
+
         print_lora_trainable_parameters(model)
-        
+
         captured = capsys.readouterr()
         assert "trainable params:" in captured.out
         assert "all params:" in captured.out

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any
 def _import_backbones():
     from .backbones.convnext_backbone import ConvNeXtBackbone, ConvNeXtBackboneConfig
     from .backbones.vit_backbone import ViTBackbone, ViTBackboneConfig
+
     return ViTBackbone, ViTBackboneConfig, ConvNeXtBackbone, ConvNeXtBackboneConfig
 
 

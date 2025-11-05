@@ -68,26 +68,18 @@ class HeatmapModel(nn.Module):
                 FPNDecoderConfig(
                     in_channels=[
                         int(c)
-                        for c in model_cfg.fpn.get(
-                            "in_channels", [128, 256, 512, 1024]
-                        )
+                        for c in model_cfg.fpn.get("in_channels", [128, 256, 512, 1024])
                     ],
                     d_model=int(model_cfg.fpn.get("d_model", 256)),
                     nhead=int(model_cfg.fpn.get("nhead", 8)),
-                    num_encoder_layers=int(
-                        model_cfg.fpn.get("num_encoder_layers", 3)
-                    ),
-                    num_feature_levels=int(
-                        model_cfg.fpn.get("num_feature_levels", 4)
-                    ),
+                    num_encoder_layers=int(model_cfg.fpn.get("num_encoder_layers", 3)),
+                    num_feature_levels=int(model_cfg.fpn.get("num_feature_levels", 4)),
                     n_points=int(model_cfg.fpn.get("n_points", 4)),
                     lateral_dim=int(model_cfg.fpn.get("lateral_dim", 256)),
                     out_size=out_size,
                 )
             )
-            self.head = HeatmapHead(
-                int(model_cfg.fpn.get("lateral_dim", 256))
-            )
+            self.head = HeatmapHead(int(model_cfg.fpn.get("lateral_dim", 256)))
         elif model_name == "convnext_deformable_fpn_heatmap":
             self.variant = "convnext_deformable_fpn"
             self.backbone = ConvNeXtBackbone(
@@ -230,6 +222,7 @@ class HeatmapModel(nn.Module):
                 prepare_model_for_kbit_training,
             )
             from tracknet.models.lora.quantization import apply_quantization
+
             LORA_AVAILABLE = True
         except ImportError:
             LORA_AVAILABLE = False
@@ -244,7 +237,7 @@ class HeatmapModel(nn.Module):
                 # Parse quantization config
                 compute_dtype_str = quant_cfg.get("compute_dtype", "bfloat16")
                 compute_dtype = parse_dtype(compute_dtype_str)
-                
+
                 quant_config = QuantizationConfig(
                     enabled=True,
                     quant_type=quant_cfg.get("quant_type", "nf4"),
@@ -287,7 +280,9 @@ class HeatmapModel(nn.Module):
 
                 # Apply LoRA to backbone
                 self.backbone = apply_lora_to_model(
-                    self.backbone, lora_config, target_modules=lora_config.target_modules
+                    self.backbone,
+                    lora_config,
+                    target_modules=lora_config.target_modules,
                 )
 
             except Exception as e:

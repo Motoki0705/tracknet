@@ -14,7 +14,7 @@ import torch
 @dataclass
 class LoRAConfig:
     """Configuration for LoRA (Low-Rank Adaptation).
-    
+
     Args:
         r: Rank of the update matrices. Lower rank means fewer parameters.
         lora_alpha: Scaling factor for LoRA weights.
@@ -24,6 +24,7 @@ class LoRAConfig:
         bias: LoRA bias configuration ("none", "all", or "lora_only").
         task_type: Type of task for LoRA configuration.
     """
+
     r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
@@ -46,7 +47,7 @@ class LoRAConfig:
 @dataclass
 class QuantizationConfig:
     """Configuration for model quantization.
-    
+
     Args:
         enabled: Whether quantization is enabled.
         quant_type: Type of quantization ("nf4" or "fp4").
@@ -56,6 +57,7 @@ class QuantizationConfig:
         compress_statistics: Whether to compress statistics (manual mode only).
         use_double_quant: Whether to use double quantization (HF mode only).
     """
+
     enabled: bool = False
     quant_type: str = "nf4"
     compute_dtype: torch.dtype = torch.bfloat16
@@ -76,13 +78,13 @@ class QuantizationConfig:
 
 def parse_dtype(dtype_str: str) -> torch.dtype:
     """Parse string to torch dtype.
-    
+
     Args:
         dtype_str: String representation of dtype ("float16", "bfloat16").
-        
+
     Returns:
         torch.dtype: Corresponding torch dtype.
-        
+
     Raises:
         ValueError: If dtype_str is not recognized.
     """
@@ -92,8 +94,8 @@ def parse_dtype(dtype_str: str) -> torch.dtype:
         "fp16": torch.float16,
         "bf16": torch.bfloat16,
     }
-    
+
     if dtype_str.lower() not in dtype_map:
         raise ValueError(f"Unsupported dtype: {dtype_str}. Use 'float16' or 'bfloat16'")
-    
+
     return dtype_map[dtype_str.lower()]

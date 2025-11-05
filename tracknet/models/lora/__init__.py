@@ -13,7 +13,7 @@ from tracknet.models.lora.quantization import apply_quantization
 
 __all__ = [
     "LoRAConfig",
-    "QuantizationConfig", 
+    "QuantizationConfig",
     "apply_lora_to_model",
     "apply_quantization",
 ]

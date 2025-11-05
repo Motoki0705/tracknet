@@ -89,7 +89,9 @@ def main(argv: list[str] | None = None) -> int:
     import os
 
     # Initialize delayed imports
-    torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger = _import_lightning()
+    torch, pl, ModelCheckpoint, EarlyStopping, LearningRateMonitor, CSVLogger = (
+        _import_lightning()
+    )
     build_cfg = _import_tracknet()
     TrackNetDataModule, PLHeatmapModule = _import_lightning_modules()
 
