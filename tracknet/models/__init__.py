@@ -6,13 +6,12 @@ Includes backbones, decoders, and heads to produce heatmap predictions.
 Lazily exposes classes at module top-level to reduce import time.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 
 def _import_backbones():
     from .backbones.convnext_backbone import ConvNeXtBackbone, ConvNeXtBackboneConfig
     from .backbones.vit_backbone import ViTBackbone, ViTBackboneConfig
-
     return ViTBackbone, ViTBackboneConfig, ConvNeXtBackbone, ConvNeXtBackboneConfig
 
 
@@ -81,7 +80,7 @@ def __getattr__(name: str) -> Any:
             raise
         globals()[name] = obj
         return obj
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    raise AttributeError(f"module {__name__} has no attribute {name}")
 
 
 def __dir__():

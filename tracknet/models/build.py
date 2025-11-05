@@ -42,6 +42,7 @@ class HeatmapModel(nn.Module):
         backbone_cfg = getattr(model_cfg, "backbone", {})
         self.freeze_backbone = bool(backbone_cfg.get("freeze", True))
 
+        # Initialize backbone first
         if model_name == "convnext_fpn_heatmap":
             self.variant = "convnext_fpn"
             self.backbone = ConvNeXtBackbone(
@@ -53,8 +54,7 @@ class HeatmapModel(nn.Module):
                         )
                     ),
                     return_stages=tuple(
-                        int(s)
-                        for s in backbone_cfg.get("return_stages", (0, 1, 2, 3, 4))
+                        int(s) for s in backbone_cfg.get("return_stages", (1, 2, 3, 4))
                     ),
                     device_map=(
                         str(backbone_cfg.get("device_map", "auto"))
@@ -66,13 +66,28 @@ class HeatmapModel(nn.Module):
             )
             self.decoder = FPNDecoderTorchvision(
                 FPNDecoderConfig(
-                    in_channels=[int(c) for c in model_cfg.fpn.in_channels],
+                    in_channels=[
+                        int(c)
+                        for c in model_cfg.fpn.get(
+                            "in_channels", [128, 256, 512, 1024]
+                        )
+                    ],
+                    d_model=int(model_cfg.fpn.get("d_model", 256)),
+                    nhead=int(model_cfg.fpn.get("nhead", 8)),
+                    num_encoder_layers=int(
+                        model_cfg.fpn.get("num_encoder_layers", 3)
+                    ),
+                    num_feature_levels=int(
+                        model_cfg.fpn.get("num_feature_levels", 4)
+                    ),
+                    n_points=int(model_cfg.fpn.get("n_points", 4)),
                     lateral_dim=int(model_cfg.fpn.get("lateral_dim", 256)),
-                    fuse=str(model_cfg.fpn.get("fuse", "sum")),
                     out_size=out_size,
                 )
             )
-            self.head = HeatmapHead(int(model_cfg.fpn.get("lateral_dim", 256)))
+            self.head = HeatmapHead(
+                int(model_cfg.fpn.get("lateral_dim", 256))
+            )
         elif model_name == "convnext_deformable_fpn_heatmap":
             self.variant = "convnext_deformable_fpn"
             self.backbone = ConvNeXtBackbone(
@@ -193,9 +208,87 @@ class HeatmapModel(nn.Module):
                 f"Unknown model_name: {model_name}. Supported: convnext_fpn_heatmap, convnext_deformable_fpn_heatmap, vit_heatmap, convnext_hrnet_heatmap"
             )
 
+        # Apply LoRA and quantization if specified
+        self._apply_lora_and_quantization(model_cfg)
+
         if self.freeze_backbone:
             for param in self.backbone.parameters():
                 param.requires_grad = False
+
+    def _apply_lora_and_quantization(self, model_cfg: DictConfig) -> None:
+        """Apply LoRA and quantization to the backbone if specified in config.
+
+        Args:
+            model_cfg: Model configuration containing LoRA/quantization settings.
+        """
+        # Import here to avoid circular imports and make LoRA/quantization optional
+        try:
+            from tracknet.models.lora import LoRAConfig, QuantizationConfig
+            from tracknet.models.lora.lora_wrapper import apply_lora_to_model, prepare_model_for_kbit_training
+            from tracknet.models.lora.quantization import apply_quantization
+            from tracknet.models.lora.config import parse_dtype
+            LORA_AVAILABLE = True
+        except ImportError:
+            LORA_AVAILABLE = False
+
+        if not LORA_AVAILABLE:
+            return
+
+        # Check if quantization is enabled
+        quant_cfg = getattr(model_cfg, "quantization", {})
+        if quant_cfg.get("enabled", False):
+            try:
+                # Parse quantization config
+                compute_dtype_str = quant_cfg.get("compute_dtype", "bfloat16")
+                compute_dtype = parse_dtype(compute_dtype_str)
+                
+                quant_config = QuantizationConfig(
+                    enabled=True,
+                    quant_type=quant_cfg.get("quant_type", "nf4"),
+                    compute_dtype=compute_dtype,
+                    skip_modules=quant_cfg.get("skip_modules", []),
+                    mode=quant_cfg.get("mode", "manual"),
+                    compress_statistics=quant_cfg.get("compress_statistics", True),
+                    use_double_quant=quant_cfg.get("use_double_quant", True),
+                )
+
+                # Get model name for HF quantization mode
+                model_name = None
+                if quant_config.mode == "hf":
+                    model_name = model_cfg.get("pretrained_model_name", None)
+
+                # Apply quantization to backbone
+                self.backbone = apply_quantization(
+                    self.backbone, quant_config, model_name=model_name
+                )
+
+                # Prepare for k-bit training if quantization was applied
+                self.backbone = prepare_model_for_kbit_training(self.backbone)
+
+            except Exception as e:
+                raise RuntimeError(f"Failed to apply quantization: {e}") from e
+
+        # Check if LoRA is enabled
+        lora_cfg = getattr(model_cfg, "lora", {})
+        if lora_cfg.get("enabled", False):
+            try:
+                # Parse LoRA config
+                lora_config = LoRAConfig(
+                    r=lora_cfg.get("r", 16),
+                    lora_alpha=lora_cfg.get("lora_alpha", 32),
+                    lora_dropout=lora_cfg.get("lora_dropout", 0.05),
+                    target_modules=lora_cfg.get("target_modules", None),
+                    bias=lora_cfg.get("bias", "none"),
+                    task_type=lora_cfg.get("task_type", "FEATURE_EXTRACTION"),
+                )
+
+                # Apply LoRA to backbone
+                self.backbone = apply_lora_to_model(
+                    self.backbone, lora_config, target_modules=lora_config.target_modules
+                )
+
+            except Exception as e:
+                raise RuntimeError(f"Failed to apply LoRA: {e}") from e
 
     def forward(self, images: torch.Tensor) -> torch.Tensor:
         if self.variant == "vit_upsample":
