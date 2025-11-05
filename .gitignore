@@ -110,9 +110,6 @@ docs/_build/
 docs/build/
 site/
 
-# OpenSpec files
-openspec/
-
 # Package management
 uv.lock
 Pipfile.lock
