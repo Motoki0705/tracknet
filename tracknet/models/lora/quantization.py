@@ -6,7 +6,7 @@ to pretrained models, enabling memory-efficient training.
 
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 import torch
 import torch.nn as nn
@@ -34,7 +34,7 @@ def _get_parent_and_attr(model: nn.Module, name: str) -> tuple[nn.Module, str]:
 def convert_linear_to_int4_manual(
     model: nn.Module,
     *,
-    skip_modules: Optional[Iterable[str]] = None,
+    skip_modules: Iterable[str] | None = None,
     quant_type: str = "nf4",
     compute_dtype: torch.dtype = torch.bfloat16,
     compress_statistics: bool = True,
@@ -57,10 +57,9 @@ def convert_linear_to_int4_manual(
     """
     try:
         import bitsandbytes as bnb
-        BNB_AVAILABLE = True
     except ImportError as e:
         raise ImportError(
-            "bitsandbytes is required for manual INT4 quantization. "
+            "bitsandbytes is required for quantization. "
             "Install with: pip install bitsandbytes"
         ) from e
     
@@ -104,31 +103,31 @@ def convert_linear_to_int4_manual(
 def apply_hf_quantization(
     model: nn.Module,
     model_name: str,
+    *,
     quant_type: str = "nf4",
     compute_dtype: torch.dtype = torch.bfloat16,
     use_double_quant: bool = True,
-    device_map: Optional[str] = None,
+    device_map: str | None = None,
 ) -> nn.Module:
     """Apply quantization using HuggingFace BitsAndBytesConfig.
-    
+
     Args:
-        model: PyTorch model to quantize (should be loaded from transformers).
-        model_name: Name/path of the pretrained model.
+        model: PyTorch model to quantize.
+        model_name: Name of the model for loading with quantization.
         quant_type: Type of 4-bit quantization ("nf4" or "fp4").
-        compute_dtype: Data type for computations.
+        compute_dtype: Compute dtype for quantized operations.
         use_double_quant: Whether to use double quantization.
         device_map: Device mapping strategy.
-        
+
     Returns:
         nn.Module: Quantized model.
-        
+
     Raises:
-        ImportError: If transformers or bitsandbytes is not available.
+        ImportError: If required libraries are not available.
         RuntimeError: If quantization fails.
     """
     try:
         from transformers import BitsAndBytesConfig
-        HF_AVAILABLE = True
     except ImportError as e:
         raise ImportError(
             "transformers is required for HF quantization. "
@@ -136,27 +135,18 @@ def apply_hf_quantization(
         ) from e
     
     try:
-        import bitsandbytes as bnb
-        BNB_AVAILABLE = True
-    except ImportError as e:
-        raise ImportError(
-            "bitsandbytes is required for HF quantization. "
-            "Install with: pip install bitsandbytes"
-        ) from e
-    
-    try:
         # Create BitsAndBytesConfig
-        bnb_config = BitsAndBytesConfig(
+        BitsAndBytesConfig(
             load_in_4bit=True,
             bnb_4bit_compute_dtype=compute_dtype,
             bnb_4bit_quant_type=quant_type,
             bnb_4bit_use_double_quant=use_double_quant,
         )
         
-        # Note: This assumes the model was loaded with transformers
-        # In practice, the model should be loaded with this config
-        # This function is mainly for documentation/validation purposes
-        
+        # Note: In actual usage, this would reload the model with quantization
+        # For now, we return the original model as a placeholder
+        print(f"Warning: HF quantization mode requires model reloading. "
+              f"Returning original model for {model_name}")
         return model
         
     except Exception as e:
@@ -166,7 +156,7 @@ def apply_hf_quantization(
 def apply_quantization(
     model: nn.Module,
     config: QuantizationConfig,
-    model_name: Optional[str] = None,
+    model_name: str | None = None,
 ) -> nn.Module:
     """Apply quantization to a PyTorch model based on configuration.
     
@@ -213,28 +203,29 @@ def apply_quantization(
 
 def validate_quantization_compatibility(
     model: nn.Module,
-    skip_modules: Optional[Iterable[str]] = None,
+    skip_modules: Iterable[str] | None = None,
 ) -> bool:
     """Validate if model is compatible with quantization.
-    
+
     Args:
         model: PyTorch model to validate.
-        skip_modules: Modules that will be skipped during quantization.
-        
+        skip_modules: Iterable of module names to skip during validation.
+
     Returns:
         bool: True if model is compatible, False otherwise.
     """
-    skip_modules = list(skip_modules or [])
+    if skip_modules is None:
+        skip_modules = []
     
     for name, module in model.named_modules():
-        if isinstance(module, nn.Linear):
-            # Check if this module will be quantized
-            if not any(skip_name in name for skip_name in skip_modules):
-                # Basic validation: check if weight dimensions are reasonable
-                if module.in_features <= 0 or module.out_features <= 0:
-                    print(f"Warning: Module {name} has invalid dimensions: "
-                          f"{module.in_features} -> {module.out_features}")
-                    return False
+        if (
+            isinstance(module, nn.Linear)
+            and not any(skip_name in name for skip_name in skip_modules)
+            and (module.in_features <= 0 or module.out_features <= 0)
+        ):
+            print(f"Warning: Module {name} has invalid dimensions: "
+                  f"{module.in_features} -> {module.out_features}")
+            return False
     
     return True
 

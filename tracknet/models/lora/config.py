@@ -7,7 +7,6 @@ LoRA and quantization behavior in TrackNet models.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 import torch
 
@@ -28,7 +27,7 @@ class LoRAConfig:
     r: int = 16
     lora_alpha: int = 32
     lora_dropout: float = 0.05
-    target_modules: Optional[List[str]] = None
+    target_modules: list[str] | None = None
     bias: str = "none"
     task_type: str = "FEATURE_EXTRACTION"
 
@@ -60,7 +59,7 @@ class QuantizationConfig:
     enabled: bool = False
     quant_type: str = "nf4"
     compute_dtype: torch.dtype = torch.bfloat16
-    skip_modules: Optional[List[str]] = field(default_factory=list)
+    skip_modules: list[str] | None = field(default_factory=list)
     mode: str = "manual"
     compress_statistics: bool = True
     use_double_quant: bool = True
