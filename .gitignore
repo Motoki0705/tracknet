@@ -46,8 +46,11 @@ annotations/
 *.csv
 *.json
 *.xml
+# Ignore all yaml files except GitHub Actions and configs
 *.yml
 *.yaml
+!.github/**/*.yml
+!.github/**/*.yaml
 !configs/**/*.yaml
 !configs/**/*.yml
 
