@@ -40,6 +40,7 @@ dev = [
     "pre-commit>=3.5.0",
     "types-PyYAML>=6.0.0",
     "types-requests>=2.31.0",
+    "pydoclint>=0.4.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -96,6 +97,8 @@ select = [
     "SIM",
     # isort
     "I",
+    # pydocstyle (docstring rules)
+    "D",
 ]
 ignore = [
     # Star imports are used for convenience in some modules
@@ -103,7 +106,17 @@ ignore = [
     "F403",
     # Line too long (handled by Black)
     "E501",
+    # We document __init__ via the class docstring's Args
+    "D107",
 ]
+
+[tool.ruff.lint.pydocstyle]
+# Enforce Google-style docstrings (Napoleon)
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests can be lighter on docstrings; allow missing module/class/function docstrings
+"tests/**" = ["D1", "D101", "D102", "D103", "D104", "D105", "D106", "D401"]
 
 # Allow fix for all enabled rules (when `--fix`) is provided.
 fixable = ["ALL"]
@@ -216,3 +229,32 @@ fail_under = 75
 
 [tool.coverage.html]
 directory = "htmlcov"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "--verbose",
+    "--cov=tracknet",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-report=xml",
+    "--cov-fail-under=75",
+    "--strict-markers",
+    "--disable-warnings",
+    # Enable doctest for docstring Examples (turn on when examples are stable)
+    # "--doctest-modules",
+    # "--doctest-glob=*.md",
+]
+markers = [
+    "unit: Unit tests for individual functions and classes",
+    "integration: Integration tests for multiple components working together",
+    "e2e: End-to-end tests for complete workflows",
+    "slow: Slow running tests",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]

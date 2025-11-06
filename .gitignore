@@ -53,6 +53,7 @@ annotations/
 !.github/**/*.yaml
 !configs/**/*.yaml
 !configs/**/*.yml
+!.pre-commit-config.yaml
 
 # Model files and checkpoints
 checkpoints/

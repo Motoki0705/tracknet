@@ -4,6 +4,7 @@ Instructions for AI coding assistants using OpenSpec for spec-driven development
 
 ## TL;DR Quick Checklist
 
+- Docstring first: write/refresh module/class/function docstrings before code
 - Search existing work: `openspec spec list --long`, `openspec list` (use `rg` only for full-text search)
 - Decide scope: new capability vs modify existing capability
 - Pick a unique `change-id`: kebab-case, verb-led (`add-`, `update-`, `remove-`, `refactor-`)
@@ -18,7 +19,7 @@ Instructions for AI coding assistants using OpenSpec for spec-driven development
 Create proposal when you need to:
 - Add features or functionality
 - Make breaking changes (API, schema)
-- Change architecture or patterns  
+- Change architecture or patterns
 - Optimize performance (changes behavior)
 - Update security patterns
 
@@ -51,10 +52,15 @@ Track these steps as TODOs and complete them one by one.
 1. **Read proposal.md** - Understand what's being built
 2. **Read design.md** (if exists) - Review technical decisions
 3. **Read tasks.md** - Get implementation checklist
-4. **Implement tasks sequentially** - Complete in order
-5. **Confirm completion** - Ensure every item in `tasks.md` is finished before updating statuses
-6. **Update checklist** - After all work is done, set every task to `- [x]` so the list reflects reality
-7. **Approval gate** - Do not start implementation until the proposal is reviewed and approved
+4. **Docstring first gate** - For every file/class/function you will touch:
+   - Add/refresh docstrings using Google style (Napoleon).
+   - Module `Notes:` must reference the relevant spec path (e.g., `docs/specs/<capability>.md`).
+   - Run docstring lint: `ruff check --select D`, optional `pydocstyle`, `darglint` (Args/Returns consistency).
+   - Proceed only when the docstring checks pass.
+5. **Implement tasks sequentially** - Complete in order
+6. **Confirm completion** - Ensure every item in `tasks.md` is finished before updating statuses
+7. **Update checklist** - After all work is done, set every task to `- [x]` so the list reflects reality
+8. **Approval gate** - Do not start implementation until the proposal is reviewed and approved
 
 ### Stage 3: Archiving Changes
 After deployment, create separate PR to:
@@ -71,6 +77,7 @@ After deployment, create separate PR to:
 - [ ] Read `openspec/project.md` for conventions
 - [ ] Run `openspec list` to see active changes
 - [ ] Run `openspec list --specs` to see existing capabilities
+- [ ] Identify impacted files/classes/functions and plan docstrings (Summary, Args/Returns/Raises, Notes→spec path)
 
 **Before Creating Specs:**
 - Always check if capability already exists
@@ -147,7 +154,7 @@ openspec/
 ```
 New request?
 ├─ Bug fix restoring spec behavior? → Fix directly
-├─ Typo/format/comment? → Fix directly  
+├─ Typo/format/comment? → Fix directly
 ├─ New feature/capability? → Create proposal
 ├─ Breaking change? → Create proposal
 ├─ Architecture change? → Create proposal
@@ -195,6 +202,13 @@ If multiple capabilities are affected, create multiple delta files under `change
 
 4. **Create tasks.md:**
 ```markdown
+## 0. Docstrings (Docstring First Gate)
+- [ ] 0.1 Add/refresh **module docstrings** in all impacted files (Google style)
+- [ ] 0.2 Add/refresh **class docstrings** (Args/Attributes aligned with code)
+- [ ] 0.3 Add/refresh **function/method docstrings** (Args/Returns/Raises aligned)
+- [ ] 0.4 In each module `Notes:`, reference the spec path (e.g., `docs/specs/<capability>.md`)
+- [ ] 0.5 Run `ruff check --select D` (and `darglint` if enabled); fix issues
+
 ## 1. Implementation
 - [ ] 1.1 Create database schema
 - [ ] 1.2 Implement API endpoint
@@ -255,6 +269,15 @@ Every requirement MUST have at least one scenario.
 ### Requirement Wording
 - Use SHALL/MUST for normative requirements (avoid should/may unless intentionally non-normative)
 
+### Code Mapping (Docstring Linking)
+- Each impacted module/class/function **MUST** have a docstring.
+- Module docstring `Notes:` **MUST** reference the spec path(s) that govern its behavior:
+  ```
+  Notes:
+  See docs/specs/<capability>.md
+  ```
+- Keep docstrings local (purpose/I-O/exceptions/minimal example). Global rationale stays in `docs/`.
+
 ### Delta Operations
 
 - `## ADDED Requirements` - New capabilities
@@ -305,6 +328,12 @@ Example for RENAMED:
 ```bash
 # Always use strict mode for comprehensive checks
 openspec validate [change] --strict
+
+# Docstring quality gates
+ruff check --select D . # pydocstyleルール
+# optional:
+# pydocstyle .
+# darglint -s google .
 
 # Debug delta parsing
 openspec show [change] --json | jq '.deltas'
@@ -378,6 +407,7 @@ notifications/spec.md
 - Single-file implementations until proven insufficient
 - Avoid frameworks without clear justification
 - Choose boring, proven patterns
+- **Docstring first**: write docstrings before touching code, keep them short (summary ≤80 chars, details ≤6 lines)
 
 ### Complexity Triggers
 Only add complexity with:
