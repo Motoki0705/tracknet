@@ -1,88 +1,125 @@
 # Project Context
 
 ## Purpose
-テニスの画像列から各種コンポーネント（選手、ボール、コートなど）を検知するモデルを学習・推論することを目的とする。
-高品質なデータと安定した学習パイプラインを提供し、モデル開発・検証・運用を効率化する。
 
-主な目標:
-- 高精度なオブジェクト検出モデルの開発
-- 学習・評価・推論を再現性高く行える環境構築
-- 推論パイプラインの軽量化と高速化
+The goal is to train and run inference with models that detect various components (players, ball, court, etc.) from sequences of tennis images.
+We aim to provide high-quality data and a stable training pipeline to streamline model development, validation, and operations.
+
+Main objectives:
+
+* Develop high-accuracy object detection models
+* Build a highly reproducible environment for training, evaluation, and inference
+* Make the inference pipeline lightweight and fast
 
 ---
 
 ## Tech Stack
-- **言語**: Python
-- **フレームワーク**: PyTorch, PyTorch Lightning
-- **設定管理**: OmegaConf
-- **ロギング/可視化**: TensorBoard, tqdm
-- **モデル関連**: HuggingFace Transformers, PEFT (Parameter-Efficient Fine-Tuning), bitsandbytes（量子化）
-- **CI/CD**: GitHub Actions
+
+* **Language**: Python
+* **Frameworks**: PyTorch, PyTorch Lightning
+* **Configuration Management**: OmegaConf
+* **Logging/Visualization**: TensorBoard, tqdm
+* **Model Tooling**: Hugging Face Transformers, PEFT (Parameter-Efficient Fine-Tuning), bitsandbytes (quantization)
+* **CI/CD**: GitHub Actions
 
 ---
 
 ## Project Conventions
 
 ### Code Style
-- **Linter/Formatter**: Ruff
-- **型チェック**: Mypy
-- **命名規約**:
-  - 変数・関数: `snake_case`
-  - クラス: `PascalCase`
-  - Configキー: `lower_case_with_underscores`
-- **構成規約**:
-  - `tracknet/` 以下に `data/`, `models/`, `training/`, `evaluation/`, `configs/`
-  - モジュールごとに明確な責務分離（データ処理、モデル、トレーニング、評価）
+
+* **Linter/Formatter**: Ruff
+* **Type Checking**: Mypy
+* **Naming Rules**:
+
+  * Variables/Functions: `snake_case`
+  * Classes: `PascalCase`
+  * Config keys: `lower_case_with_underscores`
+* **Structure Rules**:
+
+  * Under `tracknet/`: `datasets/`, `models/`, `training/`, `scripts/`, `configs/`, `tools/`, `utils/`
+  * Clear separation of concerns by module (data processing, models, training, evaluation)
 
 ---
 
 ### Architecture Patterns
-- **パターン**: クリーンアーキテクチャを参考にしたモジュール構成
-  - `domain`: データ型・モデル定義
-  - `application`: トレーニングや推論フロー
-  - `infrastructure`: データローディング・保存・ログ
-- **特徴**:
-  - OmegaConf による設定の明示的管理
-  - LightningModule により学習ロジックを分離
-  - ログ・メトリクスを TensorBoard で統合管理
+
+* **Pattern**: Module layout inspired by Clean Architecture
+
+  * `domain`: Data types and model definitions
+  * `application`: Training and inference flows
+  * `infrastructure`: Data loading, persistence, logging
+* **Characteristics**:
+
+  * Explicit configuration management with OmegaConf
+  * Training logic separated via `LightningModule`
+  * Unified logging and metrics in TensorBoard
 
 ---
 
 ### Testing Strategy
-- **テストレイヤ**:
-  - **Unit**: 関数/クラス単位のロジック検証（Pytest）
-  - **Integration/Contract**: 学習・推論パイプライン、設定ロード、モデル保存など
-  - **E2E**: データ → 学習 → 評価 → 推論の一連テスト（小規模データで再現確認）
 
-- **カバレッジ目標**:
-  - 全体: 75–85%
-  - コアロジック: 90%（branch coverage 重視）
+* **Test Layers**:
 
-- **方針**:
-  - 全体カバレッジを維持しつつ、特に推論・評価ロジックを重点的に検証
-  - 異常系（設定不備、欠損データ、GPUリソース不足など）を必ず1件以上カバー
+  * **Unit**: Verify function/class logic (pytest)
+  * **Integration/Contract**: Training/inference pipeline, config loading, model save/load, etc.
+  * **E2E**: End-to-end from data → training → evaluation → inference (use a small dataset to confirm reproducibility)
+* **Coverage Targets**:
 
-- **テストツール**:
-  - Pytest + Coverage
-  - CI上で自動実行（GitHub Actions）
+  * Overall: 75–85%
+  * Core logic: 90% (emphasis on branch coverage)
+* **Policy**:
+
+  * Maintain overall coverage while focusing especially on inference and evaluation logic
+  * Always include at least one negative case (e.g., misconfigured settings, missing data, insufficient GPU resources)
+* **Tools**:
+
+  * Pytest + Coverage
+  * Automatic execution in CI (GitHub Actions)
 
 ---
 
 ### Git Workflow
-- **ブランチモデル**: trunk-based（短命ブランチ）
-  - 命名: `feat/`, `fix/`, `refactor/`, `test/`
-- **コミット規約**: Conventional Commits
-  - 例: `feat(model): add detection head`
-- **レビュー運用**:
-  - mainブランチはPR経由のみ
-  - CIでpytest・lint・format自動チェック
-- **CI/CD**: GitHub Actions による自動テスト実行と成果物アーティファクト保存
+
+* **Branching Model**: Trunk-based (short-lived branches)
+
+  * Naming: `feat/`, `fix/`, `refactor/`, `test/`
+* **Commit Convention**: Conventional Commits
+
+  * Example: `feat(model): add detection head`
+* **Review Process**:
+
+  * `main` branch accepts changes via PRs only
+  * CI runs `pytest`, lint, and format checks automatically
+* **CI/CD**: Automated test runs and artifact retention via GitHub Actions
 
 ---
 
 ## External Dependencies
-- **主要ライブラリ/API**:
-  - PyTorch, Lightning, HuggingFace Transformers
-  - bitsandbytes（量子化）, PEFT（微調整）
-- **CIサービス**: GitHub Actions
-- **外部ログ/監視**: TensorBoard（ローカル or Remote Logger）
+
+* **Primary Libraries/APIs**:
+
+  * PyTorch, Lightning, Hugging Face Transformers
+  * bitsandbytes (quantization), PEFT (fine-tuning)
+* **CI Service**: GitHub Actions
+* **External Logging/Monitoring**: TensorBoard (local or remote logger)
+* **Package Management & Execution Policy**:
+
+  * Dependency resolution and execution are standardized with **Astral `uv`**.
+  * Always launch **`python` / `pip` / `pytest` / scripts** via **`uv run`** to eliminate per-tool virtual-environment drift and ensure full reproducibility.
+  * Examples:
+
+    ```bash
+    # Run scripts (training, evaluation, inference, etc.)
+    uv run python tracknet.training.train
+
+    # Interactive execution (including one-liners)
+    uv run python -c "import torch; print(torch.__version__)"
+
+    # Run tests
+    uv run pytest -q
+
+    # Lint/Format
+    uv run ruff check .
+    uv run ruff format .
+    ```
