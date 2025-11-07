@@ -79,7 +79,7 @@ def calculate_loss(predictions: torch.Tensor, targets: torch.Tensor) -> torch.Te
     """
     if predictions.shape[0] != targets.shape[0]:
         raise ValueError("Batch sizes must match")
-    
+
     return torch.nn.functional.cross_entropy(predictions, targets)
 ```
 
@@ -143,7 +143,7 @@ def test_model_creation():
     """モデル作成のテスト。"""
     model = create_model("vit_base")
     assert isinstance(model, torch.nn.Module)
-    
+
     # ダミー入力でforward passをテスト
     dummy_input = torch.randn(1, 3, 224, 224)
     output = model(dummy_input)

@@ -47,20 +47,29 @@ Skip proposal for:
 3. Draft spec deltas using `## ADDED|MODIFIED|REMOVED Requirements` with at least one `#### Scenario:` per requirement.
 4. Run `openspec validate <id> --strict` and resolve any issues before sharing the proposal.
 
-### Stage 2: Implementing Changes
-Track these steps as TODOs and complete them one by one.
-1. **Read proposal.md** - Understand what's being built
-2. **Read design.md** (if exists) - Review technical decisions
-3. **Read tasks.md** - Get implementation checklist
-4. **Docstring first gate** - For every file/class/function you will touch:
-   - Add/refresh docstrings using Google style (Napoleon).
-   - Module `Notes:` must reference the relevant spec path (e.g., `docs/specs/<capability>.md`).
-   - Run docstring lint: `ruff check --select D`, optional `pydocstyle`, `darglint` (Args/Returns consistency).
-   - Proceed only when the docstring checks pass.
-5. **Implement tasks sequentially** - Complete in order
-6. **Confirm completion** - Ensure every item in `tasks.md` is finished before updating statuses
-7. **Update checklist** - After all work is done, set every task to `- [x]` so the list reflects reality
-8. **Approval gate** - Do not start implementation until the proposal is reviewed and approved
+### Stage 2: Implementing Changes (Human-in-the-Loop)
+Do not begin Stage 2 until the proposal is reviewed and approved. Complete Stage 2 through the following gated sub-stages and secure a human sign-off before advancing each time.
+
+#### Stage 2A: Docstring Preparation & Review
+1. Read `proposal.md`, `design.md` (if present), and `tasks.md` to confirm scope and acceptance criteria.
+2. Identify every file/class/function you will touch and plan docstring updates using the guidance in `openspec/docstring_rules.md`.
+3. Add or refresh docstrings in Google style. Ensure each module docstring `Notes:` references the governing spec path (e.g., `docs/specs/<capability>.md`).
+4. Run docstring lint: `ruff check --select D` (and optional `pydocstyle`, `darglint`) and fix any issues.
+5. Share the docstring changes with a human reviewer, capture their feedback, and obtain explicit approval before continuing.
+
+#### Stage 2B: Implementation & Review
+1. Confirm the Stage 2A review is complete and recorded.
+2. Work through the tasks in `tasks.md` sequentially, keeping edits minimal and tightly scoped to the approved change.
+3. Keep docstrings aligned with the implementation, continuing to follow `openspec/docstring_rules.md` when new code paths are added or signatures change.
+4. Maintain the checklist status honestly; do not mark tasks complete until the associated work is finished.
+5. Summarize the implementation work, share it with a human reviewer, and obtain approval before moving to testing.
+
+#### Stage 2C: Testing & Verification
+1. Review the expectations in `openspec/tests_rules.md` alongside the broader guidance in this document.
+2. Add or update automated tests to cover the implemented behavior, prioritizing scenarios listed in `tasks.md` and the governing specs.
+3. Run the required test suites and capture command outputs (pass/fail plus relevant traces).
+4. Present the test updates and results for human review and receive sign-off.
+5. After approval, update `tasks.md` so each completed item is marked `- [x]` and reflects reality.
 
 ### Stage 3: Archiving Changes
 After deployment, create separate PR to:

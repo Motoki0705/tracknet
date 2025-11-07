@@ -74,8 +74,17 @@ Main objectives:
   * Always include at least one negative case (e.g., misconfigured settings, missing data, insufficient GPU resources)
 * **Tools**:
 
-  * Pytest + Coverage
+  * Pytest + Coverage (`uv run pytest` ensures the shared virtual environment and `pyproject.toml` settings are respected).
   * Automatic execution in CI (GitHub Actions)
+  * Default options (from `pyproject.toml`): `--cov=tracknet`, HTML/XML coverage reports, `--strict-markers`, `--disable-warnings`, coverage gate ≥75%.
+
+  ```bash
+  # Common local test runs
+  uv run pytest                          # full suite with defaults
+  uv run pytest -m "unit"               # unit-only
+  uv run pytest -m "integration and not slow"
+  uv run pytest -m "e2e" --maxfail=1
+  ```
 
 ---
 
